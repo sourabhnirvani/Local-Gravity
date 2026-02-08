@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Anysphere Dark Theme - Cursor IDE Colors */
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d2d;
+  --bg-hover: #3c3c3c;
+  --bg-active: #37373d;
+  --bg-selection: #264f78;
+
+  --border-color: #3c3c3c;
+  --border-active: #007acc;
+
+  --text-primary: #cccccc;
+  --text-secondary: #858585;
+  --text-muted: #6e6e6e;
+  --text-accent: #4fc1ff;
+  --text-highlight: #ffffff;
+
+  --accent-blue: #007acc;
+  --accent-purple: #c586c0;
+  --accent-green: #4ec9b0;
+  --accent-orange: #ce9178;
+  --accent-yellow: #dcdcaa;
+
+  --status-bar-bg: #007acc;
+  --activity-bar-bg: #333333;
+  --sidebar-bg: #252526;
+  --editor-bg: #1e1e1e;
+  --panel-bg: #1e1e1e;
+  --titlebar-bg: #323233;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', sans-serif;
+  font-size: 13px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar - VS Code Style */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(121, 121, 121, 0.4);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(121, 121, 121, 0.7);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Title Bar Drag */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Activity Bar Icons */
+.activity-icon {
+  @apply w-12 h-12 flex items-center justify-center text-[#858585] hover:text-white transition-colors cursor-pointer relative;
+}
+
+.activity-icon.active {
+  @apply text-white;
+}
+
+.activity-icon.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--accent-blue);
+}
+
+/* File Tree */
+.tree-item {
+  @apply flex items-center gap-2 px-4 py-1 cursor-pointer text-sm hover:bg-[#2a2d2e];
+}
+
+.tree-item.active {
+  @apply bg-[#37373d];
+}
+
+/* Tab Bar */
+.tab {
+  @apply flex items-center gap-2 px-3 h-9 text-sm border-r border-[#252526] cursor-pointer;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.tab.active {
+  background: var(--editor-bg);
+  color: var(--text-primary);
+  border-top: 1px solid var(--accent-blue);
+}
+
+.tab:hover .tab-close {
+  @apply opacity-100;
+}
+
+.tab-close {
+  @apply opacity-0 hover:bg-[#5a5a5a] rounded p-0.5 transition-opacity;
+}
+
+/* Monaco-like Editor */
+.editor-line {
+  @apply flex;
+  line-height: 20px;
+}
+
+.line-number {
+  @apply w-12 text-right pr-4 select-none;
+  color: var(--text-muted);
+}
+
+.line-content {
+  @apply flex-1;
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+/* Chat Messages */
+.message-user {
+  @apply bg-[#2d2d2d] rounded-lg p-3;
+}
+
+.message-assistant {
+  @apply bg-transparent p-3;
+}
+
+/* Input Box */
+.chat-input {
+  @apply w-full bg-[#3c3c3c] border border-[#555] rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:border-[#007acc];
+  color: var(--text-primary);
+}
+
+.chat-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Status Bar */
+.status-item {
+  @apply px-2 h-full flex items-center text-xs hover:bg-[#ffffff1a] cursor-pointer;
+}
+
+/* Syntax Highlighting */
+.token-keyword {
+  color: #c586c0;
+}
+
+.token-string {
+  color: #ce9178;
+}
+
+.token-function {
+  color: #dcdcaa;
+}
+
+.token-variable {
+  color: #9cdcfe;
+}
+
+.token-type {
+  color: #4ec9b0;
+}
+
+.token-comment {
+  color: #6a9955;
+}
+
+.token-number {
+  color: #b5cea8;
+}
+
+.token-operator {
+  color: #d4d4d4;
+}
+
+/* Animation */
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Breadcrumbs */
+.breadcrumb {
+  @apply flex items-center gap-1 text-xs px-3 py-1 bg-[#252526];
+  color: var(--text-secondary);
+}
+
+.breadcrumb-item:hover {
+  color: var(--text-primary);
+}
