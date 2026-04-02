@@ -1,77 +1,77 @@
 import { useState, useEffect } from 'react';
 import { GitBranch, Bell, AlertCircle, CheckCircle, Wifi, WifiOff } from 'lucide-react';
 import { checkOllamaStatus } from '../services/ollama';
+import { OpenFile } from '../types';
+import { AppSettings } from '../services/settingsService';
 
-function StatusBar() {
+interface StatusBarProps {
+    activeFile?: OpenFile;
+    settings?: AppSettings;
+}
+
+function StatusBar({ activeFile, settings }: StatusBarProps) {
     const [isOllamaConnected, setIsOllamaConnected] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
 
     useEffect(() => {
-        // Check status immediately
+        const checkStatus = async () => {
+            const connected = await checkOllamaStatus();
+            setIsOllamaConnected(connected);
+            setIsChecking(false);
+        };
         checkStatus();
-
-        // Poll every 5 seconds
         const interval = setInterval(checkStatus, 5000);
-
         return () => clearInterval(interval);
     }, []);
 
-    const checkStatus = async () => {
-        const connected = await checkOllamaStatus();
-        setIsOllamaConnected(connected);
-        setIsChecking(false);
-    };
-
     return (
-        <div className="h-6 bg-[#007acc] flex items-center justify-between text-white text-xs">
-            {/* Left Side */}
+        <div className="h-6 bg-[#007acc] flex items-center justify-between text-white text-xs select-none">
+            {/* Left */}
             <div className="flex items-center h-full">
                 <div className="status-item">
-                    <GitBranch size={14} className="mr-1" />
+                    <GitBranch size={13} className="mr-1" />
                     <span>main</span>
                 </div>
                 <div className="status-item">
-                    <CheckCircle size={14} className="mr-1" />
+                    <CheckCircle size={13} className="mr-1" />
                     <span>0</span>
-                    <AlertCircle size={14} className="ml-2 mr-1" />
+                    <AlertCircle size={13} className="ml-2 mr-1" />
                     <span>0</span>
                 </div>
             </div>
 
-            {/* Right Side */}
+            {/* Right */}
             <div className="flex items-center h-full">
+                {activeFile && (
+                    <>
+                        <div className="status-item">{activeFile.language}</div>
+                        <div className="status-item">UTF-8</div>
+                        <div className="status-item">LF</div>
+                        {settings && (
+                            <div className="status-item">Spaces: {settings.tabSize}</div>
+                        )}
+                    </>
+                )}
                 <div className="status-item">
                     {isChecking ? (
                         <>
-                            <Wifi size={14} className="mr-1 text-yellow-300 animate-pulse" />
+                            <Wifi size={13} className="mr-1 text-yellow-200 animate-pulse" />
                             <span>Connecting...</span>
                         </>
                     ) : isOllamaConnected ? (
                         <>
-                            <Wifi size={14} className="mr-1 text-green-300" />
+                            <Wifi size={13} className="mr-1 text-green-200" />
                             <span>Ollama Connected</span>
                         </>
                     ) : (
                         <>
-                            <WifiOff size={14} className="mr-1 text-red-300" />
-                            <span>Ollama Not Running</span>
+                            <WifiOff size={13} className="mr-1 text-red-200" />
+                            <span>Ollama Offline</span>
                         </>
                     )}
                 </div>
                 <div className="status-item">
-                    <span>Gemma3 4B</span>
-                </div>
-                <div className="status-item">
-                    <span>TypeScript</span>
-                </div>
-                <div className="status-item">
-                    <span>UTF-8</span>
-                </div>
-                <div className="status-item">
-                    <span>LF</span>
-                </div>
-                <div className="status-item">
-                    <Bell size={14} />
+                    <Bell size={13} />
                 </div>
             </div>
         </div>

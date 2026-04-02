@@ -4,19 +4,19 @@ import { ViewType } from '../App';
 interface ActivityBarProps {
     activeView: ViewType;
     onViewChange: (view: ViewType) => void;
+    onOpenSettings?: () => void;
 }
 
-function ActivityBar({ activeView, onViewChange }: ActivityBarProps) {
+function ActivityBar({ activeView, onViewChange, onOpenSettings }: ActivityBarProps) {
     const topIcons = [
-        { id: 'explorer' as const, icon: Files, label: 'Explorer' },
-        { id: 'search' as const, icon: Search, label: 'Search' },
+        { id: 'explorer' as const, icon: Files, label: 'Explorer (Ctrl+Shift+E)' },
+        { id: 'search' as const, icon: Search, label: 'Search (Ctrl+Shift+F)' },
         { id: 'git' as const, icon: GitBranch, label: 'Source Control' },
         { id: 'ai' as const, icon: Sparkles, label: 'AI Assistant' },
     ];
 
     return (
-        <div className="w-12 bg-[#333333] flex flex-col items-center py-1">
-            {/* Top Icons */}
+        <div className="w-12 bg-[#333333] flex flex-col items-center py-1 select-none">
             <div className="flex flex-col">
                 {topIcons.map((item) => (
                     <div
@@ -30,15 +30,17 @@ function ActivityBar({ activeView, onViewChange }: ActivityBarProps) {
                 ))}
             </div>
 
-            {/* Spacer */}
             <div className="flex-1" />
 
-            {/* Bottom Icons */}
             <div className="flex flex-col">
                 <div className="activity-icon" title="Account">
                     <User size={24} strokeWidth={1.5} />
                 </div>
-                <div className="activity-icon" title="Settings">
+                <div
+                    className="activity-icon"
+                    title="Settings (Ctrl+,)"
+                    onClick={onOpenSettings}
+                >
                     <Settings size={24} strokeWidth={1.5} />
                 </div>
             </div>
