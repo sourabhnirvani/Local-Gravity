@@ -67,6 +67,13 @@ export interface PromptOptions {
     studentProfile?: StudentProfile | null;
 }
 
+interface SamplePaperOptions {
+    subject: string;
+    examClass: 10 | 11 | 12;
+    boardOrSyllabus: string;
+    year?: number;
+}
+
 export async function analyzeQuestionPaper(
     paper: QuestionPaperRecord,
     extractedText: string,
@@ -98,6 +105,185 @@ ${truncatedText}`;
         mode: 'student',
         studentProfile: studentProfile ?? null,
     });
+}
+
+function buildMarksPattern(examClass: 10 | 11 | 12) {
+    if (examClass === 12) {
+        return {
+            totalMarks: 70,
+            duration: '3 hours',
+            sections: [
+                { name: 'Section A', questionCount: 6, marksEach: 1 },
+                { name: 'Section B', questionCount: 7, marksEach: 2 },
+                { name: 'Section C', questionCount: 7, marksEach: 3 },
+                { name: 'Section D', questionCount: 5, marksEach: 4 },
+                { name: 'Section E', questionCount: 2, marksEach: 5 },
+            ],
+        };
+    }
+
+    return {
+        totalMarks: 80,
+        duration: '3 hours',
+        sections: [
+            { name: 'Section A', questionCount: 6, marksEach: 1 },
+            { name: 'Section B', questionCount: 6, marksEach: 2 },
+            { name: 'Section C', questionCount: 8, marksEach: 3 },
+            { name: 'Section D', questionCount: 4, marksEach: 5 },
+            { name: 'Section E', questionCount: 2, marksEach: 9 },
+        ],
+    };
+}
+
+function getSubjectQuestionBank(subject: string) {
+    const normalized = subject.toLowerCase();
+
+    if (/(math|mathematics|algebra|geometry)/i.test(normalized)) {
+        return [
+            'Evaluate a linear expression for the given value of the variable.',
+            'Solve a pair of linear equations and verify the solution.',
+            'Find the zeroes of a polynomial and relate them to its coefficients.',
+            'Use the distance formula to calculate the length between two points.',
+            'Prove a basic property from triangles using similarity.',
+            'Find the probability of an event from a simple data set.',
+            'Construct a graph and interpret the slope or intercept.',
+            'Solve an application-based mensuration problem.',
+            'Use trigonometric ratios to calculate an unknown side or angle.',
+            'Interpret a statistical data table and compute mean or median.',
+        ];
+    }
+
+    if (/(science|physics|chemistry|biology)/i.test(normalized)) {
+        return [
+            'Define the concept and give one real-life example.',
+            'Differentiate between the two given scientific processes.',
+            'Write a balanced equation and identify the type of reaction.',
+            'Explain the function of a cell part, organ, or body system.',
+            'Describe an experiment, observation, and conclusion.',
+            'Draw a labelled diagram and explain its working.',
+            'Explain a force, motion, or energy concept with an example.',
+            'State one chemical property and one physical property.',
+            'Discuss an environmental or ecosystem-based application question.',
+            'Answer a case-study question using scientific reasoning.',
+        ];
+    }
+
+    if (/(social|social science|history|geography|civics|economics|political)/i.test(normalized)) {
+        return [
+            'Answer the one-word or one-line factual question.',
+            'State two causes or features related to the topic.',
+            'Explain the importance of the event or concept.',
+            'Differentiate between two institutions, resources, or systems.',
+            'Write short notes on the given map-based or source-based item.',
+            'Explain how geography affects people, agriculture, or climate.',
+            'Discuss a democratic, economic, or constitutional principle.',
+            'Interpret a map, chart, or historical source extract.',
+            'Write a paragraph on the impact of the topic in society.',
+            'Answer a competency-based case study question with reasons.',
+        ];
+    }
+
+    if (/(english|language|literature|grammar)/i.test(normalized)) {
+        return [
+            'Read the passage and answer the comprehension questions.',
+            'Write meanings, references, or inferences from the extract.',
+            'Answer a short question from prose or poetry.',
+            'Write a grammar response by editing or transforming the sentence.',
+            'Draft a letter, message, notice, or email in the proper format.',
+            'Write a paragraph or short analytical answer on the chapter theme.',
+            'Explain the character, tone, or literary device used in the text.',
+            'Write a long-answer question comparing events, ideas, or characters.',
+            'Attempt a creative writing task with clarity and coherence.',
+            'Answer a case-based language usage question.',
+        ];
+    }
+
+    return [
+        'Answer the objective-type introductory question.',
+        'Write a short explanation of the basic concept.',
+        'Differentiate between two related ideas or terms.',
+        'Answer an application-based question from the syllabus.',
+        'Write a medium-length explanation with examples.',
+        'Solve or explain a practical classroom-level problem.',
+        'Interpret a short case study, diagram, or extract.',
+        'Write a long answer using proper points and structure.',
+        'Answer a competency-based question from the unit.',
+        'Summarize the topic using accurate subject terminology.',
+    ];
+}
+
+export function buildStaticSampleQuestionPaper(options: SamplePaperOptions): string {
+    const { subject, examClass, boardOrSyllabus, year } = options;
+    const pattern = buildMarksPattern(examClass);
+    const bank = getSubjectQuestionBank(subject);
+    let cursor = 0;
+
+    const sections = pattern.sections.map((section) => {
+        const items = Array.from({ length: section.questionCount }, (_, index) => {
+            const prompt = bank[cursor % bank.length];
+            cursor += 1;
+            return `${index + 1}. ${prompt} (${section.marksEach} mark${section.marksEach > 1 ? 's' : ''})`;
+        }).join('\n');
+
+        return `${section.name} (${section.questionCount} x ${section.marksEach} = ${section.questionCount * section.marksEach})\n${items}`;
+    }).join('\n\n');
+
+    return [
+        'This is a model-generated paper based on exam pattern.',
+        '',
+        `Board / Pattern: ${boardOrSyllabus}`,
+        `Class: ${examClass}`,
+        `Subject: ${subject}`,
+        `Reference Year Pattern: ${year ?? 'Recent pattern'}`,
+        `Time: ${pattern.duration}`,
+        `Maximum Marks: ${pattern.totalMarks}`,
+        '',
+        'General Instructions:',
+        '1. Attempt all questions.',
+        '2. Read the instructions for each section carefully.',
+        '3. Internal choices may be used where appropriate to match recent board style.',
+        '4. Write neat, stepwise, and syllabus-aligned answers.',
+        '',
+        sections,
+    ].join('\n');
+}
+
+export async function generateSampleQuestionPaper(
+    options: SamplePaperOptions,
+    model: string = 'gemma3:4b',
+    studentProfile?: StudentProfile | null,
+): Promise<string> {
+    const { subject, examClass, boardOrSyllabus, year } = options;
+    const marksPattern = buildMarksPattern(examClass);
+    const prompt = `Create a realistic school question paper.
+
+Requirements:
+- Subject: ${subject}
+- Class: ${examClass}
+- Board / Syllabus: ${boardOrSyllabus}
+- Year pattern reference: ${year ?? 'Use a recent pattern'}
+- Total marks: ${marksPattern.totalMarks}
+- Duration: ${marksPattern.duration}
+- Make it look like a real school exam paper
+- Use proper section-wise distribution and marks
+- Include clear instructions
+- Match the academic level of the class and subject
+- Support all standard school subjects
+- This must be transparent, so begin with exactly: "This is a model-generated paper based on exam pattern."
+
+Suggested section distribution:
+${marksPattern.sections.map((section) => `- ${section.name}: ${section.questionCount} questions x ${section.marksEach} marks`).join('\n')}
+
+Output only the paper in a clean readable format.`;
+
+    try {
+        return await generateResponse(prompt, model, {
+            mode: 'student',
+            studentProfile: studentProfile ?? null,
+        });
+    } catch {
+        return buildStaticSampleQuestionPaper(options);
+    }
 }
 
 export async function getLocalModels(): Promise<OllamaModelInfo[]> {

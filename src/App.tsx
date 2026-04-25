@@ -513,6 +513,7 @@ export default function App() {
             studentProfile={settings.studentProfile}
             onAiModeChange={handleAiModeChange}
             onStudentProfileChange={handleStudentProfileChange}
+            theme={settings.theme}
           />
         ) : (
           <>
