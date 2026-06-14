@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="public/icon.png" alt="LocalGravity Logo" width="120" />
 
   # 🌌 LocalGravity
 
