@@ -50,11 +50,13 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
   if (status === 'success') {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <CheckCircle size={40} className="text-green-400" />
-        <p className="text-base font-medium text-[#cccccc]">Feedback sent successfully</p>
-        <p className="text-sm text-[#858585]">Thanks for helping improve LocalGravity.</p>
+        <CheckCircle size={40} className="text-blue-400" />
+        <p className="text-base font-medium text-[#cccccc]">Email Draft Opened</p>
+        <p className="text-sm text-[#858585] max-w-xs">
+          A pre-filled feedback email has been opened in your system's mail client (or Chrome). Please complete sending it from there.
+        </p>
         <button onClick={() => setStatus('idle')} className="text-xs text-[#3b82f6] hover:underline">
-          Send another
+          Write another message
         </button>
         {onClose && (
           <button onClick={onClose} className="text-xs text-[#858585] hover:text-white">
