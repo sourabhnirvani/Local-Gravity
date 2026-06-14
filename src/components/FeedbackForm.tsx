@@ -27,7 +27,16 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
     setErrorMessage('');
 
     try {
-      await window.feedback?.send({ name, email, message });
+      const subject = encodeURIComponent('LocalGravity Feedback');
+      const body = encodeURIComponent(
+        `Name: ${name || 'Anonymous'}\n` +
+        `Email: ${email || 'Not provided'}\n\n` +
+        `Message:\n${message}`
+      );
+      
+      const mailtoUrl = `mailto:novaaidrive@gmail.com?subject=${subject}&body=${body}`;
+      await window.electronAPI?.openExternalLink(mailtoUrl);
+      
       setStatus('success');
       setName('');
       setEmail('');

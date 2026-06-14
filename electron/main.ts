@@ -9,6 +9,11 @@ import { setupAuthHandlers } from './auth';
 import { setupFeedbackHandlers } from './feedback';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const execAsync = promisify(exec);
 
@@ -380,8 +385,8 @@ function setupRunHandlers() {
 
 function setupShellHandlers() {
   ipcMain.handle('open-external-link', async (_, url: string) => {
-    if (!/^https?:\/\//i.test(url)) {
-      throw new Error('Only http(s) links are allowed');
+    if (!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) {
+      throw new Error('Only http(s) and mailto links are allowed');
     }
 
     await shell.openExternal(url);
