@@ -1,13 +1,15 @@
-import { Files, Search, GitBranch, Sparkles, Settings, User } from 'lucide-react';
+import { Files, Search, GitBranch, Sparkles, Settings } from 'lucide-react';
 import { ViewType } from '../App';
 
 interface ActivityBarProps {
     activeView: ViewType;
     onViewChange: (view: ViewType) => void;
     onOpenSettings?: () => void;
+    showAIPanel?: boolean;
+    onToggleAIPanel?: () => void;
 }
 
-function ActivityBar({ activeView, onViewChange, onOpenSettings }: ActivityBarProps) {
+function ActivityBar({ activeView, onViewChange, onOpenSettings, showAIPanel, onToggleAIPanel }: ActivityBarProps) {
     const topIcons = [
         { id: 'explorer' as const, icon: Files, label: 'Explorer (Ctrl+Shift+E)' },
         { id: 'search' as const, icon: Search, label: 'Search (Ctrl+Shift+F)' },
@@ -21,8 +23,15 @@ function ActivityBar({ activeView, onViewChange, onOpenSettings }: ActivityBarPr
                 {topIcons.map((item) => (
                     <div
                         key={item.id}
-                        onClick={() => onViewChange(item.id)}
-                        className={`activity-icon ${activeView === item.id ? 'active' : ''}`}
+                        onClick={() => {
+                            if (item.id === 'ai') {
+                                onToggleAIPanel?.();
+                                onViewChange('ai');
+                            } else {
+                                onViewChange(item.id);
+                            }
+                        }}
+                        className={`activity-icon ${item.id === 'ai' ? (showAIPanel ? 'active' : '') : (activeView === item.id ? 'active' : '')}`}
                         title={item.label}
                     >
                         <item.icon size={24} strokeWidth={1.5} />
@@ -33,9 +42,7 @@ function ActivityBar({ activeView, onViewChange, onOpenSettings }: ActivityBarPr
             <div className="flex-1" />
 
             <div className="flex flex-col">
-                <div className="activity-icon" title="Account">
-                    <User size={24} strokeWidth={1.5} />
-                </div>
+
                 <div
                     className="activity-icon"
                     title="Settings (Ctrl+,)"

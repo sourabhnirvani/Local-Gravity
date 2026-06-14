@@ -1,53 +1,30 @@
-import { ChatMode, QuestionPaperRecord, StudentProfile } from '../types';
-
 const OLLAMA_BASE_URL = 'http://localhost:11434';
 
-const DEVELOPER_SYSTEM_PROMPT = `You are Gemma, a professional AI coding assistant. Your purpose is to assist developers by writing code, debugging issues, and helping them build.
+const DEVELOPER_SYSTEM_PROMPT = `You are Gemma, a professional AI coding assistant. Your purpose is to assist developers by writing code, debugging issues, executing terminal commands, and helping them build.
 
 Context Awareness:
     - The user may provide the project structure and the content of the file they are currently editing.
     - You have FULL ACCESS to the file system. You can create, edit, and delete files.
     - Always use the provided root path to construct absolute paths.
+    - You have FULL ACCESS to the terminal. You can and should execute shell commands automatically when needed (e.g., pushing edits, managing files, running tests, or building).
 
-STRICT Rules for File Operations:
+STRICT Rules for Operations:
     1. You MUST create a new file instead of editing the currently open file when a user requests creation.
     2. To EDIT or CREATE a file, output the COMPLETE file content within a standard markdown code block.
     3. The VERY FIRST LINE INSIDE the code block MUST be EXACTLY: "// FILE: absolute_path"
        (You MUST use this exact syntax even if it is invalid for the programming language, e.g., HTML, CSS, JSON).
-    4. If the user requests a project or website, you MUST generate a complete multi-file structure. Output each file sequentially in its own block using the exact same "// FILE: " format. Never dump everything into a single file. Provide proper folder structures (e.g., css/, js/, etc.).
-    5. Never inject code into the chat without the "// FILE: " tag to start the block.
-    6. Never assume the file exists — if creating, just define it out in full.
-    7. To DELETE a file, output this exact format outside any code block: "DELETE: absolute_path"
+    4. If the user requests a project or website, you MUST generate a complete multi-file structure. Output each file sequentially in its own block using the exact same "// FILE: " format. Never dump everything into a single file. Provide proper folder structures.
+    5. To EXECUTE A TERMINAL COMMAND, output the command within a standard markdown bash code block.
+    6. The VERY FIRST LINE INSIDE the command code block MUST be EXACTLY: "// COMMAND: command_to_execute"
+       (e.g., "// COMMAND: npm install" or "// COMMAND: git status").
+    7. Never inject code into the chat without the "// FILE: " or "// COMMAND: " tag to start the block.
+    8. To DELETE a file, output this exact format outside any code block: "DELETE: absolute_path"
+    9. Use the terminal proactively to read files (cat), manage git (git push), install packages (npm install), and more.
 
 Response Format:
     - You may converse naturally if the user just says hello or asks a question.
-    - ONLY output code blocks when you are providing code solutions or scaffolding a project.
-    - When you do provide code, you MUST include the "// FILE: absolute_path" marker.
-    - Be concise and focus on providing exact practical solutions.
-
-Website Generation Rules:
-    - If the user asks for a shopping website, ticket booking website, ecommerce site, booking portal, dashboard, or similar full product, default to a polished BASIC frontend demo unless they explicitly ask for only scaffolding or a specific framework.
-    - Prefer a simple static architecture first: index.html, styles.css, and script.js unless the user clearly requests React, Vue, or another framework.
-    - Do NOT pretend to build a production-ready backend-integrated system when the request is really a website UI build.
-    - Make the frontend visually good, intentional, and complete enough to open locally in a browser.
-    - If the request includes the word "basic", explicitly keep scope lightweight and static.`;
-
-const STUDENT_SYSTEM_PROMPT = `You are a friendly local AI tutor for school students in classes 1 to 12.
-
-Teaching behavior:
-    - Teach clearly using age-appropriate language based on the student's class.
-    - Explain concepts step by step and check understanding gently.
-    - Prefer simple examples, short exercises, and encouraging feedback.
-    - Align explanations and practice to the student's selected syllabus.
-    - If the student asks something advanced, simplify it first before going deeper.
-    - Keep the tone supportive, patient, and motivating.
-    - Do not behave like a coding IDE assistant unless the user explicitly asks for programming help.
-    - Focus on learning, revision, quizzes, examples, summaries, and concept clarification.
-
-Response format:
-    - Be concise but educational.
-    - Use short sections or bullets when they improve readability.
-    - Offer a quick follow-up question, mini quiz, or next step when helpful.`;
+    - ONLY output code blocks when you are providing code solutions, scaffolding a project, or executing a command.
+    - Be concise and focus on providing exact practical solutions.`;
 
 export interface OllamaResponse {
     model: string;
@@ -62,228 +39,7 @@ export interface OllamaModelInfo {
 }
 
 export interface PromptOptions {
-    mode?: ChatMode;
     isPlanningMode?: boolean;
-    studentProfile?: StudentProfile | null;
-}
-
-interface SamplePaperOptions {
-    subject: string;
-    examClass: 10 | 11 | 12;
-    boardOrSyllabus: string;
-    year?: number;
-}
-
-export async function analyzeQuestionPaper(
-    paper: QuestionPaperRecord,
-    extractedText: string,
-    model: string = 'gemma3:4b',
-    studentProfile?: StudentProfile | null,
-): Promise<string> {
-    const truncatedText = extractedText.slice(0, 18000);
-    const prompt = `Analyze this official question paper for a student.
-
-Paper metadata:
-- Board: ${paper.board}
-- Class: ${paper.examClass}
-- Year: ${paper.year}
-- Subject: ${paper.subject}
-- Exam type: ${paper.examType}
-
-Return:
-1. A short summary of the paper
-2. Key topics covered
-3. Difficulty analysis
-4. Study tips based on the paper pattern
-
-Keep the answer concise and student-friendly.
-
-Question paper text:
-${truncatedText}`;
-
-    return generateResponse(prompt, model, {
-        mode: 'student',
-        studentProfile: studentProfile ?? null,
-    });
-}
-
-function buildMarksPattern(examClass: 10 | 11 | 12) {
-    if (examClass === 12) {
-        return {
-            totalMarks: 70,
-            duration: '3 hours',
-            sections: [
-                { name: 'Section A', questionCount: 6, marksEach: 1 },
-                { name: 'Section B', questionCount: 7, marksEach: 2 },
-                { name: 'Section C', questionCount: 7, marksEach: 3 },
-                { name: 'Section D', questionCount: 5, marksEach: 4 },
-                { name: 'Section E', questionCount: 2, marksEach: 5 },
-            ],
-        };
-    }
-
-    return {
-        totalMarks: 80,
-        duration: '3 hours',
-        sections: [
-            { name: 'Section A', questionCount: 6, marksEach: 1 },
-            { name: 'Section B', questionCount: 6, marksEach: 2 },
-            { name: 'Section C', questionCount: 8, marksEach: 3 },
-            { name: 'Section D', questionCount: 4, marksEach: 5 },
-            { name: 'Section E', questionCount: 2, marksEach: 9 },
-        ],
-    };
-}
-
-function getSubjectQuestionBank(subject: string) {
-    const normalized = subject.toLowerCase();
-
-    if (/(math|mathematics|algebra|geometry)/i.test(normalized)) {
-        return [
-            'Evaluate a linear expression for the given value of the variable.',
-            'Solve a pair of linear equations and verify the solution.',
-            'Find the zeroes of a polynomial and relate them to its coefficients.',
-            'Use the distance formula to calculate the length between two points.',
-            'Prove a basic property from triangles using similarity.',
-            'Find the probability of an event from a simple data set.',
-            'Construct a graph and interpret the slope or intercept.',
-            'Solve an application-based mensuration problem.',
-            'Use trigonometric ratios to calculate an unknown side or angle.',
-            'Interpret a statistical data table and compute mean or median.',
-        ];
-    }
-
-    if (/(science|physics|chemistry|biology)/i.test(normalized)) {
-        return [
-            'Define the concept and give one real-life example.',
-            'Differentiate between the two given scientific processes.',
-            'Write a balanced equation and identify the type of reaction.',
-            'Explain the function of a cell part, organ, or body system.',
-            'Describe an experiment, observation, and conclusion.',
-            'Draw a labelled diagram and explain its working.',
-            'Explain a force, motion, or energy concept with an example.',
-            'State one chemical property and one physical property.',
-            'Discuss an environmental or ecosystem-based application question.',
-            'Answer a case-study question using scientific reasoning.',
-        ];
-    }
-
-    if (/(social|social science|history|geography|civics|economics|political)/i.test(normalized)) {
-        return [
-            'Answer the one-word or one-line factual question.',
-            'State two causes or features related to the topic.',
-            'Explain the importance of the event or concept.',
-            'Differentiate between two institutions, resources, or systems.',
-            'Write short notes on the given map-based or source-based item.',
-            'Explain how geography affects people, agriculture, or climate.',
-            'Discuss a democratic, economic, or constitutional principle.',
-            'Interpret a map, chart, or historical source extract.',
-            'Write a paragraph on the impact of the topic in society.',
-            'Answer a competency-based case study question with reasons.',
-        ];
-    }
-
-    if (/(english|language|literature|grammar)/i.test(normalized)) {
-        return [
-            'Read the passage and answer the comprehension questions.',
-            'Write meanings, references, or inferences from the extract.',
-            'Answer a short question from prose or poetry.',
-            'Write a grammar response by editing or transforming the sentence.',
-            'Draft a letter, message, notice, or email in the proper format.',
-            'Write a paragraph or short analytical answer on the chapter theme.',
-            'Explain the character, tone, or literary device used in the text.',
-            'Write a long-answer question comparing events, ideas, or characters.',
-            'Attempt a creative writing task with clarity and coherence.',
-            'Answer a case-based language usage question.',
-        ];
-    }
-
-    return [
-        'Answer the objective-type introductory question.',
-        'Write a short explanation of the basic concept.',
-        'Differentiate between two related ideas or terms.',
-        'Answer an application-based question from the syllabus.',
-        'Write a medium-length explanation with examples.',
-        'Solve or explain a practical classroom-level problem.',
-        'Interpret a short case study, diagram, or extract.',
-        'Write a long answer using proper points and structure.',
-        'Answer a competency-based question from the unit.',
-        'Summarize the topic using accurate subject terminology.',
-    ];
-}
-
-export function buildStaticSampleQuestionPaper(options: SamplePaperOptions): string {
-    const { subject, examClass, boardOrSyllabus, year } = options;
-    const pattern = buildMarksPattern(examClass);
-    const bank = getSubjectQuestionBank(subject);
-    let cursor = 0;
-
-    const sections = pattern.sections.map((section) => {
-        const items = Array.from({ length: section.questionCount }, (_, index) => {
-            const prompt = bank[cursor % bank.length];
-            cursor += 1;
-            return `${index + 1}. ${prompt} (${section.marksEach} mark${section.marksEach > 1 ? 's' : ''})`;
-        }).join('\n');
-
-        return `${section.name} (${section.questionCount} x ${section.marksEach} = ${section.questionCount * section.marksEach})\n${items}`;
-    }).join('\n\n');
-
-    return [
-        'This is a model-generated paper based on exam pattern.',
-        '',
-        `Board / Pattern: ${boardOrSyllabus}`,
-        `Class: ${examClass}`,
-        `Subject: ${subject}`,
-        `Reference Year Pattern: ${year ?? 'Recent pattern'}`,
-        `Time: ${pattern.duration}`,
-        `Maximum Marks: ${pattern.totalMarks}`,
-        '',
-        'General Instructions:',
-        '1. Attempt all questions.',
-        '2. Read the instructions for each section carefully.',
-        '3. Internal choices may be used where appropriate to match recent board style.',
-        '4. Write neat, stepwise, and syllabus-aligned answers.',
-        '',
-        sections,
-    ].join('\n');
-}
-
-export async function generateSampleQuestionPaper(
-    options: SamplePaperOptions,
-    model: string = 'gemma3:4b',
-    studentProfile?: StudentProfile | null,
-): Promise<string> {
-    const { subject, examClass, boardOrSyllabus, year } = options;
-    const marksPattern = buildMarksPattern(examClass);
-    const prompt = `Create a realistic school question paper.
-
-Requirements:
-- Subject: ${subject}
-- Class: ${examClass}
-- Board / Syllabus: ${boardOrSyllabus}
-- Year pattern reference: ${year ?? 'Use a recent pattern'}
-- Total marks: ${marksPattern.totalMarks}
-- Duration: ${marksPattern.duration}
-- Make it look like a real school exam paper
-- Use proper section-wise distribution and marks
-- Include clear instructions
-- Match the academic level of the class and subject
-- Support all standard school subjects
-- This must be transparent, so begin with exactly: "This is a model-generated paper based on exam pattern."
-
-Suggested section distribution:
-${marksPattern.sections.map((section) => `- ${section.name}: ${section.questionCount} questions x ${section.marksEach} marks`).join('\n')}
-
-Output only the paper in a clean readable format.`;
-
-    try {
-        return await generateResponse(prompt, model, {
-            mode: 'student',
-            studentProfile: studentProfile ?? null,
-        });
-    } catch {
-        return buildStaticSampleQuestionPaper(options);
-    }
 }
 
 export async function getLocalModels(): Promise<OllamaModelInfo[]> {
@@ -300,26 +56,9 @@ export async function getLocalModels(): Promise<OllamaModelInfo[]> {
     }
 }
 
-function buildStudentContext(studentProfile?: StudentProfile | null) {
-    if (!studentProfile) {
-        return '\nStudent Profile: Not provided yet. Ask for the student\'s name, class, and syllabus before personalizing advice.\n';
-    }
-
-    return `\nStudent Profile:
-- Name: ${studentProfile.name}
-- Class: ${studentProfile.grade}
-- Syllabus: ${studentProfile.syllabus}
-\nUse this profile to personalize examples, difficulty, and study suggestions.\n`;
-}
-
 function buildPrompt(userPrompt: string, options: PromptOptions = {}) {
-    const { mode = 'developer', isPlanningMode = false, studentProfile = null } = options;
-    const systemPrompt = mode === 'student' ? STUDENT_SYSTEM_PROMPT : DEVELOPER_SYSTEM_PROMPT;
-    let finalPrompt = `${systemPrompt}`;
-
-    if (mode === 'student') {
-        finalPrompt += buildStudentContext(studentProfile);
-    }
+    const { isPlanningMode = false } = options;
+    let finalPrompt = `${DEVELOPER_SYSTEM_PROMPT}`;
 
     if (isPlanningMode) {
         finalPrompt += `\n\nPLANNING MODE ACTIVE:\nYour response MUST strictly follow this structure:\n<thought>\n[Outline your step-by-step reasoning here. DO NOT write any code blocks here.]\n</thought>\n[Write your final response and actual code blocks here]`;
@@ -408,3 +147,235 @@ export async function checkOllamaStatus(): Promise<boolean> {
         return false;
     }
 }
+
+// ---------------------------------------------------------------------------
+// Agent mode: real tool-calling via Ollama's /api/chat endpoint.
+// Requires a model with tool-calling support (e.g. qwen2.5-coder, llama3.1,
+// mistral-nemo). gemma3:4b does NOT reliably support this - use the plain
+// generate* functions above for normal chat.
+// ---------------------------------------------------------------------------
+
+export interface AgentToolCallFunction {
+    name: string;
+    arguments: Record<string, unknown> | string;
+}
+
+export interface AgentToolCall {
+    id?: string;
+    function: AgentToolCallFunction;
+}
+
+export interface AgentChatMessage {
+    role: 'system' | 'user' | 'assistant' | 'tool';
+    content: string;
+    tool_calls?: AgentToolCall[];
+}
+
+export const AGENT_SYSTEM_PROMPT = `You are an autonomous coding agent working inside LocalGravity, a desktop IDE.
+
+You have tools to read, search, edit, and create files in the user's project, and to run shell commands. All file paths you pass to tools MUST be relative to the workspace root (e.g. "src/App.tsx"), never absolute, never with a drive letter.
+
+Workflow rules:
+1. Before editing a file you have not seen in this conversation, use list_directory and/or read_file to understand it. Do not guess file contents or assume a file's structure.
+2. Prefer edit_file for any file that already exists - it makes one precise, minimal replacement. Only use write_file for brand-new files or when a file genuinely needs a full rewrite. old_text in edit_file must match the file's current content exactly (including whitespace/indentation) and must be unique in the file - include enough surrounding lines to make it unique.
+3. For multi-step tasks, call update_task_list early with your plan, then call it again to update item statuses ('pending' -> 'in_progress' -> 'done') as you progress.
+4. Use run_command for installing packages, running builds/tests, or git operations. It runs in the workspace root.
+5. Make ONE tool call at a time and wait for its result before deciding the next step. Do not call multiple tools in the same turn.
+6. When the entire user request is fully done, call task_complete with a short summary. Do not call it early - only when nothing is left to do.
+
+Be direct. Don't narrate steps in prose - let the tool calls do the work. Only write plain text when asking the user a clarifying question, or in your final task_complete summary.`;
+
+export const AGENT_TOOLS = [
+    {
+        type: 'function',
+        function: {
+            name: 'read_file',
+            description: 'Read the full text content of a file in the workspace. Use this before editing a file you have not already seen.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Path relative to the workspace root, e.g. src/App.tsx' },
+                },
+                required: ['path'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'list_directory',
+            description: 'List files and folders in the workspace (recursive, excludes node_modules/dist/.git/release). Use "." for the workspace root.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Path relative to workspace root, or "." for the root' },
+                },
+                required: ['path'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'search_files',
+            description: 'Search the entire workspace for files whose contents contain the given text or code snippet. Returns matching file paths.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    query: { type: 'string', description: 'Text or code snippet to search for' },
+                },
+                required: ['query'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'edit_file',
+            description: 'Make a targeted edit to an EXISTING file by replacing one exact, unique block of text with new text. Prefer this over write_file for files that already exist.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Path relative to workspace root' },
+                    old_text: { type: 'string', description: 'Exact existing text to find. Must be unique in the file - include surrounding context if needed.' },
+                    new_text: { type: 'string', description: 'Text to replace it with' },
+                },
+                required: ['path', 'old_text', 'new_text'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'write_file',
+            description: 'Create a new file with the given full content, or completely overwrite an existing file. Only use for new files or full rewrites - for small changes to existing files use edit_file instead.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Path relative to workspace root' },
+                    content: { type: 'string', description: 'Full file content' },
+                },
+                required: ['path', 'content'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'delete_file',
+            description: 'Delete a file from the workspace.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Path relative to workspace root' },
+                },
+                required: ['path'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'run_command',
+            description: 'Run a shell command in the workspace root directory (e.g. npm install <pkg>, npm run build, git status). Returns stdout and stderr.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    command: { type: 'string', description: 'The shell command to execute' },
+                },
+                required: ['command'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'update_task_list',
+            description: 'Set or update the visible task list/plan shown to the user. Call at the start of a multi-step task, and again whenever item statuses change.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    tasks: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                text: { type: 'string' },
+                                status: { type: 'string', enum: ['pending', 'in_progress', 'done'] },
+                            },
+                            required: ['text', 'status'],
+                        },
+                    },
+                },
+                required: ['tasks'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'task_complete',
+            description: 'Call exactly once when the entire user request has been fully completed, to end the session. Provide a short summary of what was done.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    summary: { type: 'string', description: 'Short summary of what was done' },
+                },
+                required: ['summary'],
+            },
+        },
+    },
+];
+
+export async function chatWithTools(
+    messages: AgentChatMessage[],
+    model: string,
+    signal?: AbortSignal,
+): Promise<AgentChatMessage> {
+    let response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model,
+            messages,
+            tools: AGENT_TOOLS,
+            stream: false,
+            options: { temperature: 0.1 },
+        }),
+        signal,
+    });
+
+    // If model or Ollama version doesn't support tools (throws 400 Bad Request),
+    // fallback to text-only prompt injection of tools
+    if (response.status === 400) {
+        const fallbackMessages = [...messages];
+        if (fallbackMessages[0]?.role === 'system') {
+            fallbackMessages[0].content += `\n\nAVAILABLE TOOLS:\nYou must use tools by outputting raw JSON in this format: {"name": "tool_name", "arguments": {"arg1": "value"}}\n${JSON.stringify(AGENT_TOOLS, null, 2)}`;
+        }
+        
+        response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model,
+                messages: fallbackMessages,
+                stream: false,
+                options: { temperature: 0.1 },
+            }),
+            signal,
+        });
+    }
+
+    if (!response.ok) {
+        let errorMsg = response.statusText;
+        try {
+            const errBody = await response.json();
+            if (errBody.error) errorMsg = errBody.error;
+        } catch {}
+        throw new Error(`Ollama error: ${errorMsg}`);
+    }
+
+    const data = await response.json();
+    return data.message as AgentChatMessage;
+}
+

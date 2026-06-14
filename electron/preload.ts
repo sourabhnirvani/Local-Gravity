@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('fileSystem', {
   createFolder: (targetPath: string) => ipcRenderer.invoke('create-folder', targetPath),
   deleteFile: (targetPath: string) => ipcRenderer.invoke('delete-file', targetPath),
   deleteFolder: (targetPath: string) => ipcRenderer.invoke('delete-folder', targetPath),
+  editFile: (targetPath: string, oldText: string, newText: string) => ipcRenderer.invoke('edit-file', targetPath, oldText, newText),
+  searchFiles: (query: string) => ipcRenderer.invoke('search-files', query),
 });
 
 contextBridge.exposeInMainWorld('auth', {
@@ -73,14 +75,23 @@ contextBridge.exposeInMainWorld('runtime', {
     return () => ipcRenderer.removeListener('run-output', listener);
   },
   onRunStatus: (callback: (payload: RunStatusEvent) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, payload: RunStatusEvent) => callback(payload);
+    const listener = (_event: unknown, payload: RunStatusEvent) => callback(payload);
     ipcRenderer.on('run-status', listener);
     return () => ipcRenderer.removeListener('run-status', listener);
   },
+  runTerminalCommand: (command: string) => ipcRenderer.invoke('run-terminal-command', command),
+  initTerminal: () => ipcRenderer.send('terminal-init'),
+  onTerminalData: (callback: (data: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: string) => callback(data);
+    ipcRenderer.on('terminal-data', listener);
+    return () => ipcRenderer.removeListener('terminal-data', listener);
+  },
+  sendTerminalInput: (data: string) => ipcRenderer.send('terminal-input', data),
+  resizeTerminal: (cols: number, rows: number) => ipcRenderer.send('terminal-resize', cols, rows),
 });
 
-contextBridge.exposeInMainWorld('questionPapers', {
-  search: (filters: QuestionPaperSearchFilters) => ipcRenderer.invoke('question-papers-search', filters),
-  getContent: (paperId: string) => ipcRenderer.invoke('question-papers-get-content', paperId),
-  refreshCatalog: () => ipcRenderer.invoke('question-papers-refresh'),
+contextBridge.exposeInMainWorld('git', {
+  status: () => ipcRenderer.invoke('git-status'),
+  add: (file: string) => ipcRenderer.invoke('git-add', file),
+  commit: (message: string) => ipcRenderer.invoke('git-commit', message),
 });

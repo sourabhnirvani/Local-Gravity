@@ -27,17 +27,11 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
     setErrorMessage('');
 
     try {
-      const result = await window.feedback?.send({ name, email, message });
-      if (result?.success) {
-        setStatus('success');
-        setName('');
-        setEmail('');
-        setMessage('');
-        return;
-      }
-
-      setStatus('error');
-      setErrorMessage(result?.error ?? 'Failed to send feedback.');
+      await window.feedback?.send({ name, email, message });
+      setStatus('success');
+      setName('');
+      setEmail('');
+      setMessage('');
     } catch (error) {
       setStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred.');

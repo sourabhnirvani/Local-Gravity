@@ -7,7 +7,10 @@ import { spawn, ChildProcess } from 'child_process';
 import { initDatabase } from './database';
 import { setupAuthHandlers } from './auth';
 import { setupFeedbackHandlers } from './feedback';
-import { setupQuestionPaperHandlers } from './questionPapers';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 const isDev = !app.isPackaged;
 
@@ -317,6 +320,29 @@ function setupFileSystemHandlers() {
     await fs.rm(dirPath, { recursive: true, force: true });
     return true;
   });
+
+  ipcMain.handle('edit-file', async (_, filePath: string, oldText: string, newText: string) => {
+    assertWorkspacePath(filePath);
+
+    if (typeof oldText !== 'string' || typeof newText !== 'string') {
+      throw new Error('Invalid edit payload');
+    }
+
+    const content = await fs.readFile(filePath, 'utf-8');
+    const occurrences = oldText.length === 0 ? 0 : content.split(oldText).length - 1;
+
+    if (occurrences === 0) {
+      throw new Error(`No exact match for the given text was found in ${path.basename(filePath)}`);
+    }
+
+    if (occurrences > 1) {
+      throw new Error(`The given text matched ${occurrences} times in ${path.basename(filePath)}; it must be unique. Include more surrounding context.`);
+    }
+
+    const nextContent = content.replace(oldText, newText);
+    await fs.writeFile(filePath, nextContent, 'utf-8');
+    return { success: true };
+  });
 }
 
 function setupRunHandlers() {
@@ -336,6 +362,19 @@ function setupRunHandlers() {
 
     runFile(lastRunFilePath);
     return { success: true };
+  });
+
+  ipcMain.handle('run-terminal-command', async (_, command: string) => {
+    if (!currentWorkspaceRoot) {
+      throw new Error('Open a workspace folder first to run commands');
+    }
+
+    try {
+      const { stdout, stderr } = await execAsync(command, { cwd: currentWorkspaceRoot });
+      return { stdout, stderr };
+    } catch (error: any) {
+      return { stdout: error.stdout || '', stderr: error.stderr || error.message };
+    }
   });
 }
 
@@ -366,6 +405,109 @@ function setupShellHandlers() {
   });
 }
 
+let ptyProcess: any = null;
+
+function setupGitHandlers() {
+  ipcMain.handle('git-status', async () => {
+    if (!currentWorkspaceRoot) return '';
+    try {
+      const { stdout } = await execAsync('git status -s', { cwd: currentWorkspaceRoot });
+      return stdout;
+    } catch {
+      return '';
+    }
+  });
+  ipcMain.handle('git-add', async (event, file: string) => {
+    if (!currentWorkspaceRoot) return;
+    await execAsync(`git add "${file}"`, { cwd: currentWorkspaceRoot });
+  });
+  ipcMain.handle('git-commit', async (event, message: string) => {
+    if (!currentWorkspaceRoot) return;
+    await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd: currentWorkspaceRoot });
+  });
+}
+
+async function searchFilesRecursive(dir: string, query: string, results: {path: string, name: string}[]) {
+  if (results.length > 50) return;
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'dist' || entry.name === '.next') continue;
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await searchFilesRecursive(fullPath, query, results);
+    } else {
+      try {
+        const content = await fs.readFile(fullPath, 'utf8');
+        if (content.toLowerCase().includes(query.toLowerCase())) {
+          results.push({ path: fullPath, name: entry.name });
+        }
+      } catch (e) {
+        // Ignore unreadable files
+      }
+    }
+  }
+}
+
+function setupTerminalHandlers() {
+  ipcMain.on('terminal-init', (event) => {
+    try {
+      const pty = require('node-pty');
+      const os = require('os');
+      let shell = process.env[os.platform() === 'win32' ? 'COMSPEC' : 'SHELL'] || (os.platform() === 'win32' ? 'powershell.exe' : 'bash');
+      
+      // Force powershell or cmd if we are on win32 just to be safe
+      if (os.platform() === 'win32') {
+        shell = 'cmd.exe'; // using cmd.exe by default is less likely to exit instantly compared to powershell profile errors
+      }
+
+      if (ptyProcess) {
+        ptyProcess.kill();
+      }
+
+      const currentPty = pty.spawn(shell, [], {
+        name: 'xterm-color',
+        cols: 80,
+        rows: 30,
+        cwd: currentWorkspaceRoot || process.cwd(),
+        env: process.env
+      });
+
+      ptyProcess = currentPty;
+
+      currentPty.onData((data: string) => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        mainWindow.webContents.send('terminal-data', data);
+      });
+      
+      currentPty.onExit(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        // Only send exit message and nullify if this is still the active process
+        if (ptyProcess === currentPty) {
+          mainWindow.webContents.send('terminal-data', '\r\n\x1b[33mTerminal exited.\x1b[0m\r\n');
+          ptyProcess = null;
+        }
+      });
+    } catch (err) {
+      console.error('Failed to init node-pty', err);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal-data', `\x1b[31mTerminal initialization failed. Native module (node-pty) could not be loaded.\r\n${err}\x1b[0m\r\n`);
+      }
+    }
+  });
+
+  ipcMain.on('terminal-input', (event, data) => {
+    if (ptyProcess) {
+      ptyProcess.write(data);
+    }
+  });
+
+  ipcMain.on('terminal-resize', (event, cols, rows) => {
+    if (ptyProcess) {
+      ptyProcess.resize(cols, rows);
+    }
+  });
+}
+
 function initializeHandlers() {
   if (handlersInitialized) {
     return;
@@ -374,7 +516,16 @@ function initializeHandlers() {
   setupFileSystemHandlers();
   setupRunHandlers();
   setupShellHandlers();
-  setupQuestionPaperHandlers();
+  setupTerminalHandlers();
+  setupGitHandlers();
+  
+  ipcMain.handle('search-files', async (event, query: string) => {
+    if (!currentWorkspaceRoot || !query.trim()) return [];
+    const results: {path: string, name: string}[] = [];
+    await searchFilesRecursive(currentWorkspaceRoot, query, results);
+    return results;
+  });
+
   handlersInitialized = true;
 }
 

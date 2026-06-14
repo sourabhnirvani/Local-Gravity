@@ -13,74 +13,10 @@ export interface OpenFile {
   content: string;
   language: string;
   isDirty: boolean;
-}
-
-export type ChatMode = 'developer' | 'student';
-
-export type StudentSyllabus = 'CBSE' | 'NCERT';
-
-export interface StudentProfile {
-  name: string;
-  grade: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
-  syllabus: StudentSyllabus;
-  completedAt?: string;
-}
-
-export interface ChatMessage {
+}export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-}
-
-export interface WebsiteGenerationMeta {
-  isWebsiteRequest: boolean;
-  shouldAutoOpen: boolean;
-  isBasicWebsite: boolean;
-  entryFilePath?: string;
-  templateId?: string;
-  siteTitle?: string;
-  autoApplied?: boolean;
-  outputDirectory?: string;
-}
-
-export interface StudentChatSession {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type EducationBoard = 'CBSE' | 'Karnataka SSLC' | 'Karnataka PUC';
-
-export interface QuestionPaperRecord {
-  id: string;
-  board: EducationBoard;
-  examClass: 10 | 11 | 12;
-  year: number;
-  subject: string;
-  examType: 'regular' | 'compartment';
-  sourceUrl: string;
-  sourceLabel: string;
-  sourcePageUrl: string;
-  fileName: string;
-  localPath?: string | null;
-  textPath?: string | null;
-  availableOffline?: boolean;
-  extractedTextCached?: boolean;
-}
-
-export interface QuestionPaperSearchFilters {
-  board?: EducationBoard;
-  examClass?: 10 | 11 | 12;
-  year?: number;
-  subjectQuery?: string;
-}
-
-export interface QuestionPaperContent {
-  paper: QuestionPaperRecord;
-  extractedText: string;
-  localPath: string;
 }
 
 export interface UserSession {
@@ -148,30 +84,37 @@ declare global {
       readFile: (path: string) => Promise<string>;
       writeFile: (path: string, content: string) => Promise<boolean>;
       createFile: (path: string) => Promise<boolean>;
-      createFolder: (path: string) => Promise<boolean>;
-      deleteFile: (path: string) => Promise<boolean>;
-      deleteFolder: (path: string) => Promise<boolean>;
+      createFolder: (targetPath: string) => Promise<void>;
+      deleteFile: (targetPath: string) => Promise<void>;
+      deleteFolder: (targetPath: string) => Promise<void>;
+      editFile?: (targetPath: string, oldText: string, newText: string) => Promise<{ success: boolean }>;
+      searchFiles?: (query: string) => Promise<{path: string, name: string}[]>;
     };
-    auth?: {
-      register: (data: { username: string; email: string; password: string }) => Promise<AuthResponse>;
-      login: (data: { email: string; password: string }) => Promise<AuthResponse>;
-      logout: () => Promise<{ success: boolean }>;
-      checkSession: () => Promise<SessionResponse>;
+    auth: {
+      register: (data: any) => Promise<any>;
+      login: (data: any) => Promise<any>;
+      logout: () => Promise<void>;
+      checkSession: () => Promise<any>;
     };
-    feedback?: {
-      send: (data: { name?: string; email?: string; message: string }) => Promise<FeedbackResponse>;
+    feedback: {
+      send: (data: any) => Promise<void>;
     };
-    runtime?: {
-      runCurrentFile: (filePath: string) => Promise<{ success: boolean }>;
-      stopRun: () => Promise<{ success: boolean }>;
-      restartRun: () => Promise<{ success: boolean }>;
+    runtime: {
+      runCurrentFile: (filePath: string) => Promise<void>;
+      stopRun: () => Promise<void>;
+      restartRun: () => Promise<void>;
       onRunOutput: (callback: (payload: RunOutputEvent) => void) => () => void;
       onRunStatus: (callback: (payload: RunStatusEvent) => void) => () => void;
+      runTerminalCommand: (command: string) => Promise<{ stdout: string; stderr: string }>;
+      initTerminal?: () => void;
+      onTerminalData?: (callback: (data: string) => void) => () => void;
+      sendTerminalInput?: (data: string) => void;
+      resizeTerminal?: (cols: number, rows: number) => void;
     };
-    questionPapers?: {
-      search: (filters: QuestionPaperSearchFilters) => Promise<QuestionPaperRecord[]>;
-      getContent: (paperId: string) => Promise<QuestionPaperContent>;
-      refreshCatalog: () => Promise<{ success: boolean; count: number }>;
+    git?: {
+      status: () => Promise<string>;
+      add: (file: string) => Promise<void>;
+      commit: (message: string) => Promise<void>;
     };
   }
 }

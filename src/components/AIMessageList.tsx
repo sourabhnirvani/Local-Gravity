@@ -1,5 +1,5 @@
-import { BrainCircuit, Check, Copy, ExternalLink, FilePlus, GraduationCap, Loader2, Sparkles, Trash2, User } from 'lucide-react';
-import { ChatMessage, ChatMode, OpenFile, WebsiteGenerationMeta } from '../types';
+import { BrainCircuit, Check, Copy, FilePlus, Loader2, Play, Sparkles, Trash2, User } from 'lucide-react';
+import { ChatMessage, OpenFile } from '../types';
 
 interface GeneratedFile {
   path: string;
@@ -7,14 +7,13 @@ interface GeneratedFile {
 }
 
 interface AIMessageListProps {
-  aiMode: ChatMode;
   messages: ChatMessage[];
   copied: string | null;
   activeFile?: OpenFile;
   rootPath?: string | null;
   onApply: (path: string, content: string) => Promise<void> | void;
   onCopy: (text: string, id: string) => void;
-  websiteMetaByMessage?: Record<string, WebsiteGenerationMeta>;
+  onCommandResult: (stdout: string, stderr: string) => void;
 }
 
 function normalizeGeneratedPath(targetPath: string, activeFile?: OpenFile, rootPath?: string | null) {
@@ -33,32 +32,15 @@ function normalizeGeneratedPath(targetPath: string, activeFile?: OpenFile, rootP
   return targetPath;
 }
 
-function inferEntryFile(generatedFiles: GeneratedFile[]) {
-  const normalized = generatedFiles.map((file) => ({
-    ...file,
-    normalizedPath: file.path.replace(/\\/g, '/'),
-  }));
-
-  const indexFile = normalized.find((file) => /(?:^|\/)index\.html$/i.test(file.normalizedPath));
-  if (indexFile) {
-    return indexFile.path;
-  }
-
-  const anyHtml = normalized.find((file) => /\.html$/i.test(file.normalizedPath));
-  return anyHtml?.path;
-}
-
 export default function AIMessageList({
-  aiMode,
   messages,
   copied,
   activeFile,
   rootPath,
   onApply,
   onCopy,
-  websiteMetaByMessage = {},
+  onCommandResult,
 }: AIMessageListProps) {
-  const isStudentMode = aiMode === 'student';
 
   const formatMessage = (content: string, messageId: string) => {
     const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|(?=```)|$)/;
@@ -82,24 +64,34 @@ export default function AIMessageList({
       let codeContent = part.replace(/```\w*\n?/g, '').replace(/```$/g, '');
       const language = part.match(/```(\w*)/)?.[1] || '';
       const blockId = `${messageId}-${index}`;
+      
       let fileMarkerMatch = codeContent.match(/^\/\/ FILE: (.+)(\r?\n|$)/);
+      let commandMarkerMatch = codeContent.match(/^\/\/ COMMAND: (.+)(\r?\n|$)/);
 
-      if (!fileMarkerMatch && index > 0) {
+      if (!fileMarkerMatch && !commandMarkerMatch && index > 0) {
         const prevPart = parts[index - 1];
-        const matches = [...prevPart.matchAll(/\/\/ FILE: ([^\n]+)/g)];
-        if (matches.length > 0) {
-          const lastMatch = matches[matches.length - 1];
+        const fileMatches = [...prevPart.matchAll(/\/\/ FILE: ([^\n]+)/g)];
+        const commandMatches = [...prevPart.matchAll(/\/\/ COMMAND: ([^\n]+)/g)];
+        
+        if (fileMatches.length > 0) {
+          const lastMatch = fileMatches[fileMatches.length - 1];
           fileMarkerMatch = [lastMatch[0], lastMatch[1]] as unknown as RegExpMatchArray;
+        } else if (commandMatches.length > 0) {
+          const lastMatch = commandMatches[commandMatches.length - 1];
+          commandMarkerMatch = [lastMatch[0], lastMatch[1]] as unknown as RegExpMatchArray;
         }
       }
 
       let targetPath = null;
       let displayPath = '';
+      let commandToRun = null;
 
-      if (!isStudentMode && fileMarkerMatch) {
+      if (fileMarkerMatch) {
         targetPath = fileMarkerMatch[1].trim().replace(/[.:]$/, '');
         displayPath = targetPath.split(/[\\/]/).pop() || targetPath;
-      } else if (!isStudentMode && activeFile) {
+      } else if (commandMarkerMatch) {
+        commandToRun = commandMarkerMatch[1].trim();
+      } else if (activeFile) {
         targetPath = activeFile.path;
         displayPath = activeFile.name;
       }
@@ -136,6 +128,10 @@ export default function AIMessageList({
                 <span className="max-w-[200px] truncate text-[#007acc]" title={targetPath}>
                   {displayPath}
                 </span>
+              ) : commandToRun ? (
+                <span className="max-w-[200px] truncate text-[#d7ba7d]" title={commandToRun}>
+                  Terminal Command
+                </span>
               ) : null}
             </div>
             <div className="flex flex-shrink-0 items-center gap-2">
@@ -147,6 +143,25 @@ export default function AIMessageList({
                 >
                   <FilePlus size={12} fill="currentColor" />
                   Apply
+                </button>
+              ) : null}
+              {commandToRun ? (
+                <button
+                  onClick={async () => {
+                    try {
+                      const result = await window.runtime?.runTerminalCommand(commandToRun);
+                      if (result) {
+                        onCommandResult(result.stdout, result.stderr);
+                      }
+                    } catch (error) {
+                      onCommandResult('', error instanceof Error ? error.message : 'Failed to execute command');
+                    }
+                  }}
+                  className="flex items-center gap-1 rounded bg-[#0e639c] px-2 py-0.5 text-white transition-colors hover:bg-[#1177bb]"
+                  title={`Execute ${commandToRun}`}
+                >
+                  <Play size={12} fill="currentColor" />
+                  Execute Command
                 </button>
               ) : null}
               <button
@@ -188,10 +203,6 @@ export default function AIMessageList({
   };
 
   const getGeneratedFiles = (message: ChatMessage): GeneratedFile[] => {
-    if (isStudentMode) {
-      return [];
-    }
-
     const parts = message.content.split(/(```[\s\S]*?```)/g);
     const generatedFiles: GeneratedFile[] = [];
 
@@ -228,37 +239,27 @@ export default function AIMessageList({
   };
 
   return (
-    <div className={`flex-1 overflow-y-auto p-3 space-y-4 ${isStudentMode ? 'bg-[linear-gradient(180deg,#fffdf7,#fff7dc)]' : 'bg-transparent'}`}>
-      {messages.map((message) => {
+    <div className="flex-1 overflow-y-auto p-3 space-y-4 bg-transparent">
+      {messages.filter(m => m.role === 'user' || m.role === 'assistant').map((message) => {
         const generatedFiles = getGeneratedFiles(message);
-        const websiteMeta = websiteMetaByMessage[message.id];
-        const entryFilePath = websiteMeta?.entryFilePath ?? inferEntryFile(generatedFiles);
-        const shouldOpenSite = Boolean(websiteMeta?.isWebsiteRequest && entryFilePath);
-        const autoApplied = Boolean(websiteMeta?.autoApplied);
 
         return (
           <div key={message.id} className="flex gap-3">
             <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
               message.role === 'user'
-                ? isStudentMode
-                  ? 'bg-[#f2de9f] text-[#6d4a08]'
-                  : 'bg-[#3c3c3c] text-[#cccccc]'
-                : isStudentMode
-                  ? 'bg-[#d78928] text-white'
-                  : 'bg-[#007acc] text-white'
+                ? 'bg-[#3c3c3c] text-[#cccccc]'
+                : 'bg-[#007acc] text-white'
             }`}>
-              {message.role === 'user' ? <User size={14} /> : isStudentMode ? <GraduationCap size={14} /> : <Sparkles size={14} />}
+              {message.role === 'user' ? <User size={14} /> : <Sparkles size={14} />}
             </div>
 
             <div className={`min-w-0 flex-1 rounded-2xl px-4 py-3 text-sm ${
-              isStudentMode
-                ? message.role === 'user'
-                  ? 'bg-[#fff4d5] text-[#5a3907]'
-                  : 'bg-white text-[#4a2f05] shadow-sm ring-1 ring-[#f1e1aa]'
-                : 'text-[#cccccc]'
+              message.role === 'user'
+                ? 'bg-[#3c3c3c] text-[#cccccc]'
+                : 'bg-transparent text-[#cccccc]'
             }`}>
-              <div className={`mb-1 text-xs font-medium ${isStudentMode ? 'text-[#8b6d2d]' : 'text-[#858585]'}`}>
-                {message.role === 'user' ? 'You' : isStudentMode ? 'Study Buddy' : 'AI Assistant'}
+              <div className="mb-1 text-xs font-medium text-[#858585]">
+                {message.role === 'user' ? 'You' : 'AI Assistant'}
               </div>
               <div>{formatMessage(message.content, message.id)}</div>
 
@@ -266,31 +267,15 @@ export default function AIMessageList({
                 <div className="mt-3 flex justify-end">
                   <button
                     onClick={async () => {
-                      if (!autoApplied) {
-                        for (const file of generatedFiles) {
-                          await onApply(file.path, file.content);
-                        }
-                      }
-
-                      if (shouldOpenSite && entryFilePath) {
-                        try {
-                          await window.electronAPI?.openLocalFile(entryFilePath);
-                        } catch (error) {
-                          alert(error instanceof Error ? error.message : 'Unable to open generated site');
-                        }
+                      for (const file of generatedFiles) {
+                        await onApply(file.path, file.content);
                       }
                     }}
                     className="flex items-center gap-1.5 rounded border border-[#007acc]/50 bg-[#007acc] px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-[#0062a3]"
-                    title={
-                      shouldOpenSite
-                        ? autoApplied
-                          ? 'Open the saved website again in your browser'
-                          : 'Apply all website files and open the site in your browser'
-                        : 'Apply all code blocks to the editor instantly'
-                    }
+                    title="Apply all code blocks to the editor instantly"
                   >
-                    {shouldOpenSite ? <ExternalLink size={14} /> : <FilePlus size={14} />}
-                    {shouldOpenSite ? (autoApplied ? 'Open Site Again' : 'Apply and Open Site') : `Apply All ${generatedFiles.length} Files`}
+                    <FilePlus size={14} />
+                    Apply All {generatedFiles.length} Files
                   </button>
                 </div>
               ) : null}

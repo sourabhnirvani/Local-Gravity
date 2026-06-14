@@ -1,33 +1,26 @@
 import { useState } from 'react';
-import { Bot, LucideIcon, MessageSquare, Monitor, Moon, Palette, Settings as SettingsIcon, Sun, User, X } from 'lucide-react';
+import { LucideIcon, MessageSquare, Monitor, Moon, Palette, Settings as SettingsIcon, Sun, X } from 'lucide-react';
 import FeedbackForm from './FeedbackForm';
 import { settingsService, AppSettings } from '../services/settingsService';
-import { StudentProfile, StudentSyllabus } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  username: string | null;
-  onLogout: () => void;
   settings: AppSettings;
   onSettingsChange: (settings: AppSettings) => void;
 }
 
-type Tab = 'general' | 'appearance' | 'ai' | 'account' | 'feedback';
+type Tab = 'general' | 'appearance' | 'feedback';
 
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: 'general', label: 'General', icon: SettingsIcon },
   { id: 'appearance', label: 'Appearance', icon: Palette },
-  { id: 'ai', label: 'AI', icon: Bot },
-  { id: 'account', label: 'Account', icon: User },
   { id: 'feedback', label: 'Feedback', icon: MessageSquare },
 ];
 
 export default function SettingsModal({
   isOpen,
   onClose,
-  username,
-  onLogout,
   settings,
   onSettingsChange,
 }: SettingsModalProps) {
@@ -41,13 +34,6 @@ export default function SettingsModal({
     const next = { ...settings, ...updated };
     onSettingsChange(next);
     settingsService.save(next);
-  };
-
-  const studentProfileDraft: StudentProfile = settings.studentProfile ?? {
-    name: '',
-    grade: 5,
-    syllabus: 'CBSE',
-    completedAt: new Date().toISOString(),
   };
 
   return (
@@ -165,132 +151,6 @@ export default function SettingsModal({
                     ))}
                   </select>
                 </SettingRow>
-              </div>
-            )}
-
-            {activeTab === 'account' && (
-              <div className="flex flex-col gap-6">
-                <div className="flex items-center gap-4 rounded-lg border border-[#2a2a32] bg-[#0e0e11] p-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#3b82f6] text-lg font-bold text-white">
-                    {username ? username[0].toUpperCase() : '?'}
-                  </div>
-                  <div>
-                    <p className="font-medium text-[#cccccc]">{username || 'Guest'}</p>
-                    <p className="text-xs text-[#555577]">LocalGravity account</p>
-                  </div>
-                </div>
-                <p className="text-sm text-[#858585]">Your account data is stored locally in SQLite and the session persists through electron-store.</p>
-                <button
-                  onClick={() => {
-                    onLogout();
-                    onClose();
-                  }}
-                  className="self-start rounded-md border border-red-500/30 bg-red-600/10 px-4 py-2 text-sm text-red-400 transition-colors hover:bg-red-600/20"
-                >
-                  Sign Out
-                </button>
-              </div>
-            )}
-
-            {activeTab === 'ai' && (
-              <div className="flex flex-col gap-6">
-                <SettingRow label="Default AI Mode" description="Choose which assistant experience opens in the chat panel">
-                  <div className="flex items-center gap-2">
-                    {(['developer', 'student'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => handleSave({ aiMode: mode })}
-                        className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
-                          settings.aiMode === mode
-                            ? 'border-[#3b82f6] bg-[#3b82f6]/10 text-[#60a5fa]'
-                            : 'border-[#2a2a32] text-[#858585] hover:border-[#3c3c4c]'
-                        }`}
-                      >
-                        {mode === 'developer' ? 'Developer' : 'Student'}
-                      </button>
-                    ))}
-                  </div>
-                </SettingRow>
-
-                <div className="rounded-lg border border-[#2a2a32] bg-[#0e0e11] p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-[#cccccc]">Student profile</p>
-                      <p className="mt-1 text-xs text-[#555577]">Used to personalize explanations, practice sets, and lesson difficulty in student mode.</p>
-                    </div>
-                    {settings.studentProfile ? (
-                      <button
-                        onClick={() => handleSave({ studentProfile: null })}
-                        className="rounded-md border border-red-500/30 bg-red-600/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-600/20"
-                      >
-                        Reset
-                      </button>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <label className="flex flex-col gap-1">
-                      <span className="text-xs text-[#858585]">Name</span>
-                      <input
-                        value={settings.studentProfile?.name ?? ''}
-                        onChange={(event) =>
-                          handleSave({
-                            studentProfile: {
-                              ...studentProfileDraft,
-                              name: event.target.value,
-                            },
-                          })
-                        }
-                        placeholder="Student name"
-                        className="rounded-md border border-[#2a2a32] bg-[#15161b] px-3 py-2 text-sm text-[#cccccc] focus:border-[#3b82f6] focus:outline-none"
-                      />
-                    </label>
-
-                    <label className="flex flex-col gap-1">
-                      <span className="text-xs text-[#858585]">Class</span>
-                      <select
-                        value={studentProfileDraft.grade}
-                        onChange={(event) =>
-                          handleSave({
-                            studentProfile: {
-                              ...studentProfileDraft,
-                              grade: Number(event.target.value) as StudentProfile['grade'],
-                            },
-                          })
-                        }
-                        className="rounded-md border border-[#2a2a32] bg-[#15161b] px-3 py-2 text-sm text-[#cccccc] focus:border-[#3b82f6] focus:outline-none"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((grade) => (
-                          <option key={grade} value={grade}>
-                            Class {grade}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="flex flex-col gap-1">
-                      <span className="text-xs text-[#858585]">Syllabus</span>
-                      <select
-                        value={studentProfileDraft.syllabus}
-                        onChange={(event) =>
-                          handleSave({
-                            studentProfile: {
-                              ...studentProfileDraft,
-                              syllabus: event.target.value as StudentSyllabus,
-                            },
-                          })
-                        }
-                        className="rounded-md border border-[#2a2a32] bg-[#15161b] px-3 py-2 text-sm text-[#cccccc] focus:border-[#3b82f6] focus:outline-none"
-                      >
-                        {(['CBSE', 'NCERT'] as const).map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </div>
               </div>
             )}
 

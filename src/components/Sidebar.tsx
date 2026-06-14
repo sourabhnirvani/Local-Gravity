@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -11,8 +11,13 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
+import { Menu, Item, Separator, useContextMenu } from 'react-contexify';
+import 'react-contexify/dist/ReactContexify.css';
+import GitView from './GitView';
 import { ViewType } from '../App';
 import { FileNode } from '../types';
+
+const MENU_ID = 'sidebar-context-menu';
 
 interface SidebarProps {
   activeView: ViewType;
@@ -29,15 +34,6 @@ interface SidebarProps {
   onSearchQueryChange: (query: string) => void;
 }
 
-function flattenFiles(nodes: FileNode[]): FileNode[] {
-  return nodes.flatMap((node) => {
-    if (node.type === 'directory') {
-      return flattenFiles(node.children ?? []);
-    }
-    return [node];
-  });
-}
-
 export default function Sidebar({
   activeView,
   width,
@@ -52,14 +48,37 @@ export default function Sidebar({
   onSearchQueryChange,
 }: SidebarProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const { show } = useContextMenu({ id: MENU_ID });
 
-  const searchResults = useMemo(() => {
+  const handleContextMenu = (event: React.MouseEvent, node: FileNode) => {
+    event.stopPropagation();
+    show({ event, props: { node } });
+  };
+
+  const [searchResults, setSearchResults] = useState<{path: string, name: string}[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
     if (!searchQuery.trim()) {
-      return [];
+      setSearchResults([]);
+      return;
     }
 
-    return flattenFiles(fileTree).filter((node) => node.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [fileTree, searchQuery]);
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await window.fileSystem?.searchFiles?.(searchQuery) || [];
+        setSearchResults(results);
+      } catch (e) {
+        console.error(e);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
 
   const toggleFolder = (folderPath: string) => {
     setExpandedFolders((current) => {
@@ -109,6 +128,7 @@ export default function Sidebar({
           className="tree-item"
           style={{ paddingLeft: `${12 + depth * 16}px` }}
           onClick={() => handleFileClick(node)}
+          onContextMenu={(e) => handleContextMenu(e, node)}
         >
           {node.type === 'directory' ? (
             <>
@@ -212,9 +232,11 @@ export default function Sidebar({
             </div>
 
             {searchQuery.trim() === '' ? (
-              <p className="text-sm text-[#6f7192]">Type to search by file name across the current project.</p>
+              <p className="text-sm text-[#6f7192]">Type to search across the entire project contents.</p>
+            ) : isSearching ? (
+              <p className="text-sm text-[#6f7192]">Searching...</p>
             ) : searchResults.length === 0 ? (
-              <p className="text-sm text-[#6f7192]">No matching files found.</p>
+              <p className="text-sm text-[#6f7192]">No matching results found.</p>
             ) : (
               <div className="space-y-1">
                 {searchResults.map((node) => (
@@ -223,10 +245,10 @@ export default function Sidebar({
                     onClick={() => onFileOpen?.(node.path)}
                     className="flex w-full items-center gap-2 rounded px-2 py-2 text-left hover:bg-[#2a2a32]"
                   >
-                    <File size={14} style={{ color: getFileIcon(node.extension) }} />
+                    <File size={14} style={{ color: getFileIcon(node.name.split('.').pop()) }} />
                     <div className="min-w-0">
                       <div className="truncate text-sm text-[#cccccc]">{node.name}</div>
-                      <div className="truncate text-xs text-[#6f7192]">{node.path}</div>
+                      <div className="truncate text-xs text-[#6f7192]">{node.path.split(/[\\/]/).pop()}</div>
                     </div>
                   </button>
                 ))}
@@ -235,7 +257,7 @@ export default function Sidebar({
           </div>
         )}
 
-        {activeView === 'git' && <div className="p-4 text-sm text-[#858585]">Source control UI is ready for Git integration.</div>}
+        {activeView === 'git' && <GitView />}
 
         {activeView === 'ai' && (
           <div className="p-4 text-sm text-[#cccccc]">
@@ -244,6 +266,27 @@ export default function Sidebar({
           </div>
         )}
       </div>
+
+      <Menu id={MENU_ID} theme="dark" className="text-xs text-[#cccccc] bg-[#252526] border border-[#3c3c3c]">
+        <Item onClick={({ props }) => onFileOpen?.(props.node.path)}>
+          Open
+        </Item>
+        <Item onClick={({ props }) => navigator.clipboard.writeText(props.node.path)}>
+          Copy Path
+        </Item>
+        <Separator />
+        <Item onClick={({ props }) => {
+          if (confirm(`Are you sure you want to delete ${props.node.name}?`)) {
+            if (props.node.type === 'directory') {
+              window.fileSystem?.deleteFolder(props.node.path).then(onRefresh);
+            } else {
+              window.fileSystem?.deleteFile(props.node.path).then(onRefresh);
+            }
+          }
+        }} className="text-red-400 hover:text-red-300">
+          Delete
+        </Item>
+      </Menu>
     </div>
   );
 }

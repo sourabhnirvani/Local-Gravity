@@ -22,7 +22,7 @@ export const authService = {
       return Promise.resolve({ success: false });
     }
 
-    return window.auth.logout();
+    return window.auth.logout().then(() => ({ success: true }));
   },
 
   checkSession(): Promise<SessionResponse> {

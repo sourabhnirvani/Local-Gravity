@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import ActivityBar from './components/ActivityBar';
-import AuthScreen from './components/AuthScreen';
 import CommandPalette from './components/CommandPalette';
 import EditorLayout from './components/EditorLayout';
 import SettingsModal from './components/SettingsModal';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
-import StudentWorkspace from './components/StudentWorkspace';
 import TitleBar from './components/TitleBar';
-import { authService } from './services/authService';
 import { AppSettings, settingsService } from './services/settingsService';
-import { ChatMode, FileNode, OpenFile, RunOutputEvent, RunStatusEvent, StudentProfile } from './types';
+import { FileNode, OpenFile, RunOutputEvent, RunStatusEvent } from './types';
 
 export type ViewType = 'explorer' | 'search' | 'git' | 'ai';
 
@@ -50,9 +47,7 @@ export default function App() {
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState<string | null>(null);
-  const [authChecking, setAuthChecking] = useState(true);
+
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -65,23 +60,8 @@ export default function App() {
   const [runStatus, setRunStatus] = useState<RunStatusEvent['state']>('idle');
 
   const activeFile = openFiles[activeFileIndex];
-  const isStudentMode = settings.aiMode === 'student';
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await authService.checkSession();
-        if (response.success && response.session) {
-          setIsAuthenticated(true);
-          setUsername(response.session.username);
-        }
-      } finally {
-        setAuthChecking(false);
-      }
-    };
 
-    checkAuth();
-  }, []);
 
   useEffect(() => {
     const unsubscribeOutput = window.runtime?.onRunOutput((payload) => {
@@ -140,21 +120,7 @@ export default function App() {
     });
   }, []);
 
-  const handleLoginSuccess = (nextUsername: string) => {
-    setIsAuthenticated(true);
-    setUsername(nextUsername);
-  };
 
-  const handleLogout = async () => {
-    await authService.logout();
-    setIsAuthenticated(false);
-    setUsername(null);
-    setOpenFiles([]);
-    setRootPath(null);
-    setFileTree([]);
-    setOutputLines([]);
-    setRunStatus('idle');
-  };
 
   const handleOpenFolder = async () => {
     const selectedPath = await window.fileSystem?.openFolderDialog();
@@ -307,14 +273,6 @@ export default function App() {
     settingsService.save(nextSettings);
   }, []);
 
-  const handleAiModeChange = useCallback((aiMode: ChatMode) => {
-    handleSettingsChange({ ...settings, aiMode });
-  }, [handleSettingsChange, settings]);
-
-  const handleStudentProfileChange = useCallback((studentProfile: StudentProfile | null) => {
-    handleSettingsChange({ ...settings, studentProfile });
-  }, [handleSettingsChange, settings]);
-
   const handleGoToLine = () => {
     const line = prompt('Go to line:');
     if (!line) {
@@ -389,13 +347,6 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const mod = event.ctrlKey || event.metaKey;
-      if (isStudentMode) {
-        if (mod && event.key === ',') {
-          event.preventDefault();
-          setSettingsOpen(true);
-        }
-        return;
-      }
       if (mod && event.shiftKey && event.key.toLowerCase() === 'p') {
         event.preventDefault();
         setCommandPaletteOpen((current) => !current);
@@ -446,7 +397,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFileIndex, isStudentMode, openFiles.length, searchQuery]);
+  }, [activeFileIndex, openFiles.length, searchQuery]);
 
   const startResizing = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -464,20 +415,10 @@ export default function App() {
   };
 
 
-  if (authChecking) {
-    return <div className="flex h-screen w-screen items-center justify-center bg-[#0e0e11] text-sm text-[#6f7192]">Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
-  }
-
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0e0e11]" onMouseMove={resize} onMouseUp={() => setIsResizing(false)}>
       <TitleBar
-        variant={isStudentMode ? 'student' : 'developer'}
-        onLogout={handleLogout}
-        username={username}
+        variant="developer"
         onNewFile={handleCreateFile}
         onOpenFile={handleOpenFile}
         onOpenFolder={handleOpenFolder}
@@ -508,88 +449,75 @@ export default function App() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {isStudentMode ? (
-          <StudentWorkspace
-            studentProfile={settings.studentProfile}
-            onAiModeChange={handleAiModeChange}
-            onStudentProfileChange={handleStudentProfileChange}
-            theme={settings.theme}
-          />
-        ) : (
-          <>
-            <ActivityBar activeView={activeView} onViewChange={setActiveView} onOpenSettings={() => setSettingsOpen(true)} />
-            <Sidebar
-              activeView={activeView}
-              width={sidebarWidth}
-              onWidthChange={setSidebarWidth}
-              onFileOpen={handleFileOpen}
-              rootPath={rootPath}
-              fileTree={fileTree}
-              onOpenFolder={handleOpenFolder}
-              onRefresh={() => refreshFileTree()}
-              onCreateFile={handleCreateFile}
-              onCreateFolder={handleCreateFolder}
-              searchQuery={searchQuery}
-              onSearchQueryChange={setSearchQuery}
-            />
+        <ActivityBar
+          activeView={activeView}
+          onViewChange={setActiveView}
+          onOpenSettings={() => setSettingsOpen(true)}
+          showAIPanel={showAIPanel}
+          onToggleAIPanel={() => setShowAIPanel((s) => !s)}
+        />
+        <Sidebar
+          activeView={activeView}
+          width={sidebarWidth}
+          onWidthChange={setSidebarWidth}
+          onFileOpen={handleFileOpen}
+          rootPath={rootPath}
+          fileTree={fileTree}
+          onOpenFolder={handleOpenFolder}
+          onRefresh={() => refreshFileTree()}
+          onCreateFile={handleCreateFile}
+          onCreateFolder={handleCreateFolder}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+        />
 
-            <EditorLayout
-              openFiles={openFiles}
-              activeFileIndex={activeFileIndex}
-              onFileSelect={setActiveFileIndex}
-              onFileClose={handleFileClose}
-              onContentChange={handleContentChange}
-              onSave={handleFileSave}
-              settings={settings}
-              showAIPanel={showAIPanel}
-              aiPanelWidth={aiPanelWidth}
-              onStartResize={startResizing}
-              onCloseAIPanel={() => setShowAIPanel(false)}
-              rootPath={rootPath}
-              fileTree={fileTree}
-              onApplyCode={handleApplyCode}
-              onLivePreview={handleLivePreview}
-              activeFile={activeFile}
-              outputLines={outputLines}
-              outputVisible={outputVisible}
-              runState={runStatus}
-              onToggleOutput={() => setOutputVisible((current) => !current)}
-              onClearOutput={() => setOutputLines([])}
-              aiMode={settings.aiMode}
-              studentProfile={settings.studentProfile}
-              onAiModeChange={handleAiModeChange}
-              onStudentProfileChange={handleStudentProfileChange}
-            />
-          </>
-        )}
+        <EditorLayout
+          openFiles={openFiles}
+          activeFileIndex={activeFileIndex}
+          onFileSelect={setActiveFileIndex}
+          onFileClose={handleFileClose}
+          onContentChange={handleContentChange}
+          onSave={handleFileSave}
+          settings={settings}
+          showAIPanel={showAIPanel}
+          aiPanelWidth={aiPanelWidth}
+          onStartResize={startResizing}
+          onCloseAIPanel={() => setShowAIPanel(false)}
+          rootPath={rootPath}
+          fileTree={fileTree}
+          onApplyCode={handleApplyCode}
+          onLivePreview={handleLivePreview}
+          activeFile={activeFile}
+          outputLines={outputLines}
+          outputVisible={outputVisible}
+          runState={runStatus}
+          onToggleOutput={() => setOutputVisible((current) => !current)}
+          onClearOutput={() => setOutputLines([])}
+        />
       </div>
 
-      {!isStudentMode ? <StatusBar activeFile={activeFile} settings={settings} /> : null}
+      <StatusBar activeFile={activeFile} settings={settings} />
 
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        username={username}
-        onLogout={handleLogout}
         settings={settings}
         onSettingsChange={handleSettingsChange}
       />
 
-      {!isStudentMode ? (
-        <CommandPalette
-          isOpen={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          onOpenFolder={handleOpenFolder}
-          onOpenFile={handleOpenFile}
-          onNewFile={handleCreateFile}
-          onSave={handleFileSave}
-          onToggleSettings={() => setSettingsOpen(true)}
-          onRunCode={handleRunCode}
-          onGoToLine={handleGoToLine}
-          onSearchInProject={handleSearchInProject}
-          onViewOutput={() => setOutputVisible(true)}
-        />
-      ) : null}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onOpenFolder={handleOpenFolder}
+        onOpenFile={handleOpenFile}
+        onNewFile={handleCreateFile}
+        onSave={handleFileSave}
+        onToggleSettings={() => setSettingsOpen(true)}
+        onRunCode={handleRunCode}
+        onGoToLine={handleGoToLine}
+        onSearchInProject={handleSearchInProject}
+        onViewOutput={() => setOutputVisible(true)}
+      />
     </div>
   );
 }

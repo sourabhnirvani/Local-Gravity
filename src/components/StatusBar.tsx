@@ -25,7 +25,7 @@ function StatusBar({ activeFile, settings }: StatusBarProps) {
     }, []);
 
     return (
-        <div className="h-6 bg-[#007acc] flex items-center justify-between text-white text-xs select-none">
+        <div className="h-6 bg-[#15161b] border-t border-[#2a2a32] flex items-center justify-between text-[#8b91aa] text-xs select-none">
             {/* Left */}
             <div className="flex items-center h-full">
                 <div className="status-item">

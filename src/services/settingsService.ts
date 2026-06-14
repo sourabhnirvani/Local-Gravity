@@ -1,4 +1,3 @@
-import { ChatMode, StudentProfile } from '../types';
 
 export interface AppSettings {
     autoSave: boolean;
@@ -8,8 +7,6 @@ export interface AppSettings {
     theme: 'dark' | 'light' | 'system';
     fontSize: number;
     fontFamily: string;
-    aiMode: ChatMode;
-    studentProfile: StudentProfile | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -20,8 +17,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     theme: 'dark',
     fontSize: 14,
     fontFamily: 'Consolas',
-    aiMode: 'developer',
-    studentProfile: null,
 };
 
 const STORAGE_KEY = 'localgravity_settings';

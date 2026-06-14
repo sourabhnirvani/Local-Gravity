@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Circle, X } from 'lucide-react';
+import Editor, { useMonaco } from '@monaco-editor/react';
 import { OpenFile } from '../types';
 import { AppSettings } from '../services/settingsService';
 
@@ -22,10 +23,9 @@ export default function EditorArea({
   onSave,
   settings,
 }: EditorAreaProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<any>(null);
+  const monaco = useMonaco();
   const activeFile = openFiles[activeFileIndex];
-
-  const activeLines = useMemo(() => (activeFile ? activeFile.content.split('\n') : []), [activeFile]);
 
   useEffect(() => {
     const handleSaveShortcut = (event: KeyboardEvent) => {
@@ -34,134 +34,62 @@ export default function EditorArea({
         onSave();
       }
     };
-
     window.addEventListener('keydown', handleSaveShortcut);
     return () => window.removeEventListener('keydown', handleSaveShortcut);
   }, [onSave]);
 
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea || !activeFile) {
-      return undefined;
-    }
-
-    const insertAtSelection = async (text: string, replaceSelection = true) => {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const nextContent = `${activeFile.content.slice(0, start)}${text}${activeFile.content.slice(replaceSelection ? end : start)}`;
-      onContentChange(nextContent);
-      requestAnimationFrame(() => {
-        textarea.focus();
-        const caret = start + text.length;
-        textarea.setSelectionRange(caret, caret);
-      });
-    };
-
-    const replaceCurrentSelection = (nextText: string) => {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const nextContent = `${activeFile.content.slice(0, start)}${nextText}${activeFile.content.slice(end)}`;
-      onContentChange(nextContent);
-      requestAnimationFrame(() => {
-        textarea.focus();
-        const caret = start + nextText.length;
-        textarea.setSelectionRange(caret, caret);
-      });
-    };
-
-    const selectMatch = (query: string) => {
-      const searchFrom = textarea.selectionEnd;
-      const haystack = activeFile.content.toLowerCase();
-      const needle = query.toLowerCase();
-      const firstIndex = haystack.indexOf(needle, searchFrom);
-      const index = firstIndex >= 0 ? firstIndex : haystack.indexOf(needle);
-      if (index >= 0) {
-        textarea.focus();
-        textarea.setSelectionRange(index, index + query.length);
-      }
-    };
+    if (!editorRef.current) return;
 
     const handleGoToLine = (event: Event) => {
       const detail = (event as CustomEvent<{ line: number }>).detail;
-      const lineIndex = Math.min(Math.max(1, detail.line), activeLines.length || 1) - 1;
-      const charsBefore = activeLines.slice(0, lineIndex).join('\n').length + (lineIndex > 0 ? 1 : 0);
-      const targetLine = activeLines[lineIndex] ?? '';
-      textarea.focus();
-      textarea.setSelectionRange(charsBefore, charsBefore + targetLine.length);
+      editorRef.current?.setPosition({ lineNumber: detail.line, column: 1 });
+      editorRef.current?.revealLine(detail.line);
+      editorRef.current?.focus();
     };
 
     const handleFind = (event: Event) => {
       const detail = (event as CustomEvent<{ query: string }>).detail;
       if (detail.query) {
-        selectMatch(detail.query);
+        editorRef.current?.getAction('actions.find').run();
       }
     };
 
-    const handleReplace = (event: Event) => {
-      const detail = (event as CustomEvent<{ find: string; replace: string }>).detail;
-      if (!detail.find) {
-        return;
-      }
-
-      const selectedText = activeFile.content.slice(textarea.selectionStart, textarea.selectionEnd);
-      if (selectedText === detail.find) {
-        replaceCurrentSelection(detail.replace);
-        return;
-      }
-
-      const nextContent = activeFile.content.split(detail.find).join(detail.replace);
-      onContentChange(nextContent);
-    };
-
-    const handleUndo = () => document.execCommand('undo');
-    const handleRedo = () => document.execCommand('redo');
-    const handleSelectAll = () => {
-      textarea.focus();
-      textarea.select();
-    };
-    const handleCopy = async () => {
-      const text = activeFile.content.slice(textarea.selectionStart, textarea.selectionEnd);
-      if (text) {
-        await navigator.clipboard.writeText(text);
-      }
-    };
-    const handleCut = async () => {
-      const selectedText = activeFile.content.slice(textarea.selectionStart, textarea.selectionEnd);
-      if (!selectedText) {
-        return;
-      }
-      await navigator.clipboard.writeText(selectedText);
-      replaceCurrentSelection('');
-    };
-    const handlePaste = async () => {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        await insertAtSelection(text);
-      }
-    };
-
+    const handleUndo = () => editorRef.current?.trigger('keyboard', 'undo', null);
+    const handleRedo = () => editorRef.current?.trigger('keyboard', 'redo', null);
+    const handleSelectAll = () => editorRef.current?.setSelection(editorRef.current?.getModel().getFullModelRange());
+    
     window.addEventListener('go-to-line', handleGoToLine);
     window.addEventListener('find-in-file', handleFind);
-    window.addEventListener('replace-in-file', handleReplace);
     window.addEventListener('editor-undo', handleUndo);
     window.addEventListener('editor-redo', handleRedo);
     window.addEventListener('editor-select-all', handleSelectAll);
-    window.addEventListener('editor-copy', handleCopy);
-    window.addEventListener('editor-cut', handleCut);
-    window.addEventListener('editor-paste', handlePaste);
 
     return () => {
       window.removeEventListener('go-to-line', handleGoToLine);
       window.removeEventListener('find-in-file', handleFind);
-      window.removeEventListener('replace-in-file', handleReplace);
       window.removeEventListener('editor-undo', handleUndo);
       window.removeEventListener('editor-redo', handleRedo);
       window.removeEventListener('editor-select-all', handleSelectAll);
-      window.removeEventListener('editor-copy', handleCopy);
-      window.removeEventListener('editor-cut', handleCut);
-      window.removeEventListener('editor-paste', handlePaste);
     };
-  }, [activeFile, activeLines, onContentChange]);
+  }, [activeFile]);
+
+  // Setup custom theme once monaco is loaded
+  useEffect(() => {
+    if (monaco) {
+      monaco.editor.defineTheme('localgravity-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': '#0f1014',
+          'editor.lineHighlightBackground': '#1a1b24',
+          'editorLineNumber.foreground': '#5a6075',
+        }
+      });
+      monaco.editor.setTheme('localgravity-dark');
+    }
+  }, [monaco]);
 
   const handleTabClose = (event: React.MouseEvent, index: number) => {
     event.stopPropagation();
@@ -183,23 +111,23 @@ export default function EditorArea({
     return map[extension] ?? '#519aba';
   };
 
-  const getBreadcrumbs = (targetPath: string) => targetPath.split(/[\\/]/).slice(Math.max(0, targetPath.split(/[\\/]/).length - 3));
+  const getBreadcrumbs = (targetPath: string) => 
+    targetPath.split(/[\\/]/).slice(Math.max(0, targetPath.split(/[\\/]/).length - 3));
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!activeFile) {
-      return;
-    }
-
-    if (event.key === 'Tab') {
-      event.preventDefault();
-      const tabSize = settings?.tabSize ?? 4;
-      const spaces = ' '.repeat(tabSize);
-      const textarea = event.currentTarget;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const nextContent = `${activeFile.content.slice(0, start)}${spaces}${activeFile.content.slice(end)}`;
-      onContentChange(nextContent);
-      requestAnimationFrame(() => textarea.setSelectionRange(start + tabSize, start + tabSize));
+  const getMonacoLanguage = (fileName: string) => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'ts':
+      case 'tsx': return 'typescript';
+      case 'js':
+      case 'jsx': return 'javascript';
+      case 'html': return 'html';
+      case 'css': return 'css';
+      case 'json': return 'json';
+      case 'md': return 'markdown';
+      case 'py': return 'python';
+      case 'java': return 'java';
+      default: return 'plaintext';
     }
   };
 
@@ -241,31 +169,33 @@ export default function EditorArea({
         ))}
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {settings?.lineNumbers !== false && (
-          <div className="w-14 overflow-hidden border-r border-[#1e1f28] bg-[#0f1014] py-4 text-right text-xs text-[#5a6075]">
-            {activeLines.map((_, index) => (
-              <div key={index} className="pr-3 leading-6">
-                {index + 1}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <textarea
-          ref={textareaRef}
-          className="h-full flex-1 resize-none bg-transparent p-4 text-[#d4d4d4] outline-none"
-          style={{
-            fontSize: `${settings?.fontSize ?? 14}px`,
+      <div className="flex flex-1 overflow-hidden relative">
+        <Editor
+          height="100%"
+          language={getMonacoLanguage(activeFile.name)}
+          theme="localgravity-dark"
+          value={activeFile.content}
+          onChange={(value) => onContentChange(value || '')}
+          onMount={(editor) => { editorRef.current = editor; }}
+          options={{
+            fontSize: settings?.fontSize ?? 14,
             fontFamily: settings?.fontFamily ?? 'Consolas, monospace',
             tabSize: settings?.tabSize ?? 4,
-            whiteSpace: settings?.wordWrap ? 'pre-wrap' : 'pre',
-            lineHeight: '1.5rem',
+            wordWrap: settings?.wordWrap ? 'on' : 'off',
+            lineNumbers: settings?.lineNumbers !== false ? 'on' : 'off',
+            minimap: { enabled: true, scale: 0.75 },
+            padding: { top: 16 },
+            scrollBeyondLastLine: false,
+            smoothScrolling: true,
+            cursorBlinking: 'smooth',
+            cursorSmoothCaretAnimation: 'on',
+            formatOnPaste: true,
           }}
-          value={activeFile.content}
-          onChange={(event) => onContentChange(event.target.value)}
-          onKeyDown={handleKeyDown}
-          spellCheck={false}
+          loading={
+            <div className="flex items-center justify-center h-full w-full text-[#6f7192] text-sm">
+              Loading Editor...
+            </div>
+          }
         />
       </div>
     </div>
