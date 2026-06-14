@@ -9,7 +9,7 @@
   [![Built with React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)](https://reactjs.org/)
   [![Powered by Ollama](https://img.shields.io/badge/Ollama-Local_AI-FF5722?logo=ollama&logoColor=white)](https://ollama.com/)
 
-  *LocalGravity combines a completely offline local AI coding assistant with a full-screen student learning mode—meaning the exact same app can support both professional developers and school learners without requiring any paid cloud APIs!*
+  *LocalGravity is a completely offline local AI coding assistant and IDE, giving you the power of an autonomous coding agent directly on your local machine without requiring any paid cloud APIs!*
 
 </div>
 
@@ -20,18 +20,12 @@
 - **🔒 100% Private & Local:** Runs entirely on your machine through Ollama. No remote APIs, no telemetry, no subscription fees.
 - **🛠️ Powerful Developer Workspace:** A complete IDE featuring a file explorer, multi-tab editor, AI chat, live file-apply, and integrated terminal.
 - **🤖 Autonomous Agent Mode:** A supercharged AI agent that can proactively read files, rewrite code, and run terminal commands to build your project from scratch.
-- **🎓 Dedicated Student Mode:** A full-screen workspace with onboarding, chat history, personalized tutoring, and question-paper analysis.
-- **⚡ Dynamic Templates:** Uses template-backed website generation for common frontend practical assignments (e.g. shopping, booking, hotels).
 
 ---
 
 ## 💻 Developer Mode & Agent Workflow
 
 LocalGravity keeps the editor-first workflow intact while supercharging it with a fully autonomous AI Agent.
-
-<div align="center">
-  *(You can add a screenshot of the IDE interface here! Example: `![IDE Interface](docs/ide-screenshot.png)`)*
-</div>
 
 ### 🚀 The Autonomous Agent
 Toggle on **Agent Mode** to give the AI the reins! The Agent can seamlessly:
@@ -50,27 +44,6 @@ Toggle on **Agent Mode** to give the AI the reins! The Agent can seamlessly:
 
 ---
 
-## 🎓 Student Mode
-
-Student mode replaces the heavy developer layout with a distraction-free, full-screen learning workspace.
-
-<div align="center">
-  *(You can add a screenshot of the Student Interface here! Example: `![Student Interface](docs/student-screenshot.png)`)*
-</div>
-
-- **Personalized Onboarding:** Tailored tutoring using the student's name, class, and syllabus context.
-- **ChatGPT-Style Interface:** A friendly, full-screen conversational view.
-- **Chat History:** Persistent tracking with reusable past conversations.
-- **Advanced Question Paper Analysis:** Search, retrieve, summarize, extract topics, and analyze difficulty for official past papers.
-
-### 📚 Official Board Support
-We currently support downloading and caching question papers from:
-- **CBSE** (Previous-year question papers)
-- **Karnataka SSLC** (Official sources)
-- **Karnataka PUC** (Official sources)
-
----
-
 ## 🛠️ Tech Stack
 
 LocalGravity is built with a modern, high-performance web and desktop stack:
@@ -81,7 +54,6 @@ LocalGravity is built with a modern, high-performance web and desktop stack:
 * **AI Engine:** [Ollama](https://ollama.com/) (e.g., `gemma3:4b`, `qwen2.5-coder`)
 * **Terminal:** `node-pty` for the integrated PTY terminal
 * **Diff Engine:** `diff` library for the Pending File Changes UI
-* **Database:** `better-sqlite3`
 
 ---
 
