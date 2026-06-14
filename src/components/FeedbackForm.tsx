@@ -27,20 +27,33 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
     setErrorMessage('');
 
     try {
-      const subject = encodeURIComponent('LocalGravity Feedback');
-      const body = encodeURIComponent(
-        `Name: ${name || 'Anonymous'}\n` +
-        `Email: ${email || 'Not provided'}\n\n` +
-        `Message:\n${message}`
-      );
-      
-      const mailtoUrl = `mailto:novaaidrive@gmail.com?subject=${subject}&body=${body}`;
-      await window.electronAPI?.openExternalLink(mailtoUrl);
-      
-      setStatus('success');
-      setName('');
-      setEmail('');
-      setMessage('');
+      const response = await fetch('https://formsubmit.co/ajax/novaaidrive@gmail.com', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          Name: name || 'Anonymous',
+          Email: email || 'Not provided',
+          Message: message,
+          _subject: 'LocalGravity IDE Feedback',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success === 'true' || data.success === true) {
+        setStatus('success');
+        setName('');
+        setEmail('');
+        setMessage('');
+      } else {
+        throw new Error(data.message || 'Failed to send feedback.');
+      }
     } catch (error) {
       setStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'An unexpected error occurred.');
@@ -50,13 +63,13 @@ export default function FeedbackForm({ onClose }: FeedbackFormProps) {
   if (status === 'success') {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-        <CheckCircle size={40} className="text-blue-400" />
-        <p className="text-base font-medium text-[#cccccc]">Email Draft Opened</p>
+        <CheckCircle size={40} className="text-green-400" />
+        <p className="text-base font-medium text-[#cccccc]">Feedback Sent Successfully</p>
         <p className="text-sm text-[#858585] max-w-xs">
-          A pre-filled feedback email has been opened in your system's mail client (or Chrome). Please complete sending it from there.
+          Thanks for helping improve LocalGravity! Your feedback has been sent directly to the developer.
         </p>
         <button onClick={() => setStatus('idle')} className="text-xs text-[#3b82f6] hover:underline">
-          Write another message
+          Send another
         </button>
         {onClose && (
           <button onClick={onClose} className="text-xs text-[#858585] hover:text-white">
